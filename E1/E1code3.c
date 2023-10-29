@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
 
     /* Construct array with frequencies */
     double frequencies[N_POINTS];
-    for (int i = N_POINTS/2; i < N_POINTS/2 -1 ; i++) {
+    for (int i = 0; i < N_POINTS ; i++) {
 
         frequencies[i] = (i) / (dt * (N_POINTS)) ;
     }
