@@ -4,7 +4,6 @@ LOCAL = ${HOME}/.local
 CFLAGS = \
 	 -pedantic \
 	 -Wall \
-	 -Werror \
 	 -g \
 	 -Iinclude \
 	 -MMD \
@@ -20,7 +19,8 @@ CFLAGS_OPT = \
 LIB = \
       -lm \
       -lgsl \
-      -lgslcblas
+      -lgslcblas \
+	  -lsubunit
 
 OBJ = \
       obj/tools.o

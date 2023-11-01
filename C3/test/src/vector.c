@@ -8,7 +8,7 @@ norm(
 	    unsigned int len
 	   ){
 		double sum = 0;
-	   for(int i = 0; i<len;i++){
+		for(int i = 0; i<len;i++){
 			sum += pow(v1[i],2);
 	   }
 	   sum = sqrt(sum);

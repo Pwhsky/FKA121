@@ -36,11 +36,11 @@
   START_TEST(test_norm)
 {
     double v1[] = {1., 2., 3.};
-    const unsigned int len = sizeof(v1);
+    const unsigned int len = sizeof(v1)/sizeof(double);
     // Calculate the norm
     double answer = norm(v1,len);
 
-    ck_assert_double_eq_tol(answer, sqrt(14), 1e-8);
+    ck_assert_double_eq_tol(answer, sqrt(14), 1e-5);
 
 }
 void

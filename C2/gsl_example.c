@@ -27,6 +27,7 @@ int main(){
         array[i] = rand;
     }
     write_to_file("distribution.csv",array);
+    printf("finished writing to file\n");
 
 
     return 0;

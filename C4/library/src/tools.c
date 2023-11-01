@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <gsl/gsl_fft_real.h>
 #include <gsl/gsl_fft_halfcomplex.h>
@@ -15,6 +16,9 @@ elementwise_addition(
                      unsigned int len
                     )
 {
+    for(int i = 0; i<len;i++){
+        res[i] = v1[i] + v2[i]; 
+    }
 
 }
 
@@ -26,7 +30,9 @@ elementwise_multiplication(
                            unsigned int len
                           )
 {
-
+    for(int i = 0; i<len;i++){
+        res[i] = v1[i] * v2[i]; 
+    }
 }
 
 void
@@ -36,7 +42,9 @@ addition_with_constant(
                        double constant,
                        unsigned int len)
 {
-
+    for(int i = 0; i<len;i++){
+        res[i] = v[i] + constant; 
+    }
 }
 
 void
@@ -46,7 +54,9 @@ multiplication_with_constant(
                              double constant,
                              unsigned int len)
 {
-
+     for(int i = 0; i<len;i++){
+        res[i] = v[i] * constant; 
+    }
 }
 
 double
@@ -56,7 +66,11 @@ dot_product(
             unsigned int len
            )
 {
-    return 0.;
+    double sum = 0;
+     for(int i = 0; i<len;i++){
+        sum += v1[i] * v2[i]; 
+    }
+    return sum;
 }
 
 double **
@@ -65,17 +79,22 @@ create_2D_array(
                 unsigned int row_size
                )
 {
-    double **array = NULL;
+   
+    double** array = (double**)malloc(row_size*sizeof(double*));
+    for (int i = 0; i < column_size; ++i) {
+        array[i] = (double*)malloc(column_size* sizeof(double));
+    }
     return array;
 }
-
 void
 destroy_2D_array(
                  double **array,
                  unsigned int n
-                )
-
-{
+                ){
+    for(int i=0; i<n; i++){
+        free(array[i]);
+    }
+    free(array);
 }
 
 void
@@ -87,6 +106,14 @@ matrix_vector_multiplication(
                              unsigned int m
                             )
 {
+    
+    for(int i = 0; i < n; i++){
+        result[i] = 0;
+        for(int j = 0; j<m;j++){
+            result[i] += A[i][j]*b[j];
+        }
+    }
+
 }
 
 void
@@ -99,7 +126,19 @@ matrix_matrix_multiplication(
                              unsigned int k
                             )
 {
+    for(int ix = 0; ix < n; ix++)
+    {
+        for(int jx = 0; jx < m; jx++)
+        {
+            result[ix][jx] = 0;
+            for(int kx = 0; kx < k; kx++)
+            {
+                result[ix][jx] += A[ix][kx] * B[kx][jx];
+            }
+        }
+    }
 }
+
 
 double
 vector_norm(
@@ -107,7 +146,11 @@ vector_norm(
             unsigned int len
            )
 {
-    return 0.;
+    double sum = 0;
+    for(int i = 0; i<len; i++){
+        sum += pow(v1[i],2);
+    }
+    return sqrt(sum);
 }
 
 
@@ -117,6 +160,11 @@ normalize_vector(
                  unsigned int len
                 )
 {
+    double norm = vector_norm(v1,len);
+    for(int i = 0; i<len; i++){
+        v1[i] /= norm;
+    }
+    
 }
 
 double
@@ -125,7 +173,12 @@ average(
         unsigned int len
        )
 {
-    return 0.;
+    double sum = 0;
+    for(int i = 0; i< len; i++){
+        sum += v1[i];
+    }
+    
+    return sum/(double)len;
 }
 
 
@@ -135,7 +188,19 @@ standard_deviation(
                        unsigned int len
                   )
 {
-    return 0.;
+    double average = 0;
+    for(int i = 0; i< len; i++){
+        average += v1[i];
+    }
+    
+    return average/(double)average;
+    double sum = 0;
+    for(int i = 0; i<len; i++){
+        sum += pow((v1[i]-average),2);
+    }
+    
+    sum = sqrt(sum/(double)len);
+    return sum;
 }
 
 double
@@ -145,7 +210,12 @@ distance_between_vectors(
                          unsigned int len
                         )
 {
-    return 0.;
+    double sum = 0.0;
+    for(int i = 0; i<len; i++){
+        double diff = v1[i]-v2[i];
+        sum += (diff,2);
+    }
+    return sqrt(sum);
 }
 
 void
@@ -156,9 +226,30 @@ cumulative_integration(
                        unsigned int v_len
                       )
 {
+    for(int i = 0; i<v_len-1; i++){
+        
+        *res += dx*(v[i]+v[i+1])/2.0;
+    }
 
 }
 
+void fft_freq(
+          double *res,
+              int n,
+              double timestep)
+{
+    int N = (n-1)/2 +1;
+    
+    for (int i = 0; i<N; i++){
+        res[i] = i;
+    }
+    for (int i = N; i<n; i++){
+        res[i] = i-n;
+    }
+    for(int i = 0; i < N;i++){
+        res[i] = res[i]/(n*timestep);
+    }
+}
 
 void
 write_xyz(
@@ -170,14 +261,22 @@ write_xyz(
           int natoms)
 {
 
-}
+    int written = fprintf(fp, "%i\nLattice=\"%lf 0.0 0.0 0.0 %lf 0.0 0.0 0.0 %lf\"", natoms, alat, alat, alat );
+    if (written < 0){
+        printf("error writing to file\n");
+        exit(1);
+    }
+    for (int i = 0; i < natoms; i++) {
+        written = fprintf(fp, "%s %lf %lf %lf %lf %lf %lf\n", symbol, 
+                        positions[i][0], positions[i][1], positions[i][2],
+                        velocities[i][0], velocities[i][1], velocities[i][2]);
 
-void fft_freq(
-          double *res,
-              int n,
-              double timestep)
-{
 
+        if (written < 0) {
+            fprintf(stderr, "Error writing to the file.\n");
+            exit(1);
+        }
+    }
 }
 
 /* Freely given functions */
