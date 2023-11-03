@@ -15,7 +15,7 @@ double *linspace(double start, double end, int number_of_points)
     double *data = (double*)malloc(sizeof(double)*number_of_points);
 
     // spacing between points
-    double dx = fabs( (double)(start-end) / (double)(number_of_points-1));
+    double dx = fabsl( (double)(start-end) / (double)(number_of_points-1));
 
     // Fill array
     for(int n = 1; n < number_of_points; n++){
