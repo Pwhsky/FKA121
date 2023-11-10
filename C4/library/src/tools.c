@@ -82,7 +82,6 @@ create_2D_array(
     double* arrayEntries = (double*)malloc(sizeof(double)*row_size*column_size);
     double** array       = (double**)malloc(column_size*sizeof(double*));
     for (int i = 0,j=0; i < column_size; ++i,j+=row_size) {
-
         array[i] = arrayEntries +j;
     }
     return array;
@@ -94,6 +93,7 @@ destroy_2D_array(
                 ){
     free(*array);
     free(array);
+    
 }
 
 void
