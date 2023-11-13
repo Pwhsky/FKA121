@@ -3,9 +3,13 @@ from matplotlib import pyplot as plt
 array = np.genfromtxt('task1.csv',delimiter=',',skip_header=1)
 array[:,1] = array[:,1]**3
 
-model = np.poly1d(np.polyfit(array[:,1], array[:,0], 3))
+model = np.poly1d(np.polyfit(array[:,1], array[:,0], 2))
 polyline = np.linspace(min(array[:,1]), max(array[:,1]), 50)
 fitted_values = model(polyline)
+
+minima = np.argmin(fitted_values,polyline)
+
+print(f"minima = {minima}")
 fig,ax = plt.subplots()
 ax.scatter(array[:,1],array[:,0],label="Computed point")
 ax.plot(polyline,fitted_values,label="Quadratic fit",linestyle="dashed")

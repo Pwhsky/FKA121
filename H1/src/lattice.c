@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-void init_fcc(double positions[][3], int N, double lattice_param)
+void init_fcc(double **positions, int N, double lattice_param)
 {
     double base[4][3] = {
 	{0., 0., 0.},
@@ -22,3 +22,4 @@ void init_fcc(double positions[][3], int N, double lattice_param)
         }
     }
 }
+

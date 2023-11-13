@@ -13,7 +13,7 @@
  * >>> get_forces_AL(f,pos, L, N);
  *
  * ****************************************************************************/
-void get_forces_AL(double[][3] , double[][3], double, int);
+void get_forces_AL(double **, double **, double, int);
 
 
 /* ****************************************************************************
@@ -26,7 +26,7 @@ void get_forces_AL(double[][3] , double[][3], double, int);
  * >>> double energy = get_energy_AL(pos, L, N);
  *
  * ****************************************************************************/
-double get_energy_AL(double[][3], double, int);
+double get_energy_AL(double **, double, int);
 
 
 
@@ -40,4 +40,5 @@ double get_energy_AL(double[][3], double, int);
  * >>> double virial = get_virial_AL(pos, L, N);
  *
  * ****************************************************************************/
-double get_virial_AL(double[][3], double, int);
+double get_virial_AL(double **, double, int);
+

@@ -1,15 +1,55 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <time.h>
 #include "lattice.h"
 #include "potential.h"
 #include "tools.h"
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
+void verlet_step(double** positions, double** velocities, double** forces, int nAtoms, double dt,  double m, double L);
+double get_Ekin(double** v, int nAtoms, double m);
+
+
 void task1();
 void task2(){
+    int timeSteps = 10;
+    double dt = 1.0/(double)timeSteps;
+    int nAtoms = 256; double a0 = 4.05; double cell_length = 4.0*a0; double m = 26.0/9649.0; //aluminum mass
+    double** positions = create_2D_array(256,3);
+    init_fcc(positions,4,a0);
 
-    int nAtoms = 256;
-    double positions[256][3];
-    double a0 = 4.05;
+    // Create a random number generator
+    const gsl_rng_type *T;
+    gsl_rng *r;
+    gsl_rng_env_setup();
+    T = gsl_rng_default;
+    r = gsl_rng_alloc(T);
+    gsl_rng_set(r, time(NULL));
+    double lower_bound = -0.065*a0;
+    double upper_bound = 0.065*a0;
+    double** forces = create_2D_array(256,3);
+    double** velocities = create_2D_array(256,3);
+    //Randomly perturb the positions:
+    for(int i = 0; i<nAtoms;i++){
+        for(int j=0; j < 3;j++){
+            double displacement = gsl_ran_flat(r, lower_bound, upper_bound);
+            positions[i][j] += displacement;
+            velocities[i][j] = 0.0;
+        }
+    }
+    double* kinetic_energy = (double*)malloc(sizeof(double)*timeSteps);
+    double* potential_energy = (double*)malloc(sizeof(double)*timeSteps);
+    double* total_energy = (double*)malloc(sizeof(double)*timeSteps);
+    get_forces_AL(forces,positions,cell_length,nAtoms);
+    for(int t = 0; t< timeSteps;t++){
+        verlet_step(positions,velocities,forces, nAtoms, dt, m,  cell_length);
+        kinetic_energy[t] = get_Ekin(velocities,nAtoms,m);
+        potential_energy[t] = get_energy_AL(positions,cell_length,nAtoms);
+        total_energy[t] = kinetic_energy[t]+potential_energy[t];
+    }
+    
+    
 
 }
 
@@ -19,24 +59,25 @@ run(
     char *argv[]
    )
 {   
-    task1();
-
+    //task1();
+     task2();
 	
     return 0;
 }
 
 void task1(){
     int nAtoms = 256;
-    int n_trials = 10;
+    int n_trials = 15;
     
     double lattice_params[n_trials];
     double potential_energies[n_trials];
     for(int i = 0; i<n_trials; i++){
-        lattice_params[i] = 4.05- (n_trials/2.0 - i)*0.05;
+        lattice_params[i] = 4.05- (n_trials/2.0 - i)*0.01;
     }
+
     for(int i = 0; i<n_trials; i++){
     
-        double positions[256][3];
+        double** positions = create_2D_array(256,3);
         double a0 = lattice_params[i];
         double cell_length = 4.0*a0;
         init_fcc(positions,4,a0);
@@ -55,4 +96,31 @@ void task1(){
     }
     fclose(fp);
 
+}
+
+void verlet_step(double** positions, double** velocities, double** forces, int nAtoms, double dt,  double m, double L){
+
+    for(int i = 0; i < nAtoms; i++){
+        for(int j = 0; j < 3; j++){
+            velocities[i][j] += dt*forces[i][j]/(2.0*m);
+            positions[i][j] += dt*velocities[i][j];
+        }
+    }
+
+    get_forces_AL(forces,positions, L, nAtoms);
+
+    for(int i = 0; i < nAtoms; i++){
+        for(int j = 0; j < 3; j++){
+            velocities[i][j] += dt*forces[i][j]/(2.0*m);
+        }
+    }
+}
+double get_Ekin(double** velocities, int nAtoms, double m){
+    double energy = 0.0;
+    for(int i = 0; i < nAtoms; i++){
+        for(int j = 0; j < 3; j++){
+            energy += m*pow(velocities[i][j],2)/2.0;
+        }
+    }  
+    return energy;
 }

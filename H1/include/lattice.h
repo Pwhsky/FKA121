@@ -11,4 +11,4 @@
  * >>> init_fcc(pos, Nc, a0);
  *
  * ****************************************************************************/
-void init_fcc(double[][3], int, double);
+void init_fcc(double**, int, double);
