@@ -7,14 +7,18 @@
 #include "tools.h"
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
+
+
 void verlet_step(double** positions, double** velocities, double** forces, int nAtoms, double dt,  double m, double L);
 double get_Ekin(double** v, int nAtoms, double m);
-
+double get_temp(double** velocities, int nAtoms, double m);
 
 void task1();
 void task2(){
-    int timeSteps = 10;
-    double dt = 1.0/(double)timeSteps;
+    int timeSteps = 100000;
+    
+
+    double dt = 0.0001;
     int nAtoms = 256; double a0 = 4.05; double cell_length = 4.0*a0; double m = 26.0/9649.0; //aluminum mass
     double** positions = create_2D_array(256,3);
     init_fcc(positions,4,a0);
@@ -41,15 +45,27 @@ void task2(){
     double* kinetic_energy = (double*)malloc(sizeof(double)*timeSteps);
     double* potential_energy = (double*)malloc(sizeof(double)*timeSteps);
     double* total_energy = (double*)malloc(sizeof(double)*timeSteps);
+    double* temperature = (double*)malloc(sizeof(double)*timeSteps);
+
+    double* time = (double*)malloc(sizeof(double)*timeSteps);
+
     get_forces_AL(forces,positions,cell_length,nAtoms);
     for(int t = 0; t< timeSteps;t++){
+        time[t] = t*dt; 
         verlet_step(positions,velocities,forces, nAtoms, dt, m,  cell_length);
         kinetic_energy[t] = get_Ekin(velocities,nAtoms,m);
         potential_energy[t] = get_energy_AL(positions,cell_length,nAtoms);
         total_energy[t] = kinetic_energy[t]+potential_energy[t];
+        temperature[t] = get_temp(velocities,nAtoms,m);
     }
     
-    
+    FILE *fp = fopen("task2.csv", "w");
+    fprintf(fp, "time,Ekin,Epot,Etot,temp\n");
+
+    for (int i = 0; i < timeSteps; i++) {
+        fprintf(fp, "%lf,%lf,%lf,%lf,%lf\n",time[i],kinetic_energy[i],potential_energy[i],total_energy[i],temperature[i]);
+    }
+    fclose(fp);
 
 }
 
@@ -122,5 +138,17 @@ double get_Ekin(double** velocities, int nAtoms, double m){
             energy += m*pow(velocities[i][j],2)/2.0;
         }
     }  
+    return energy;
+}
+double get_temp(double** velocities, int nAtoms, double m){
+    double energy = 0.0;
+    double kb = 1.380649*pow(10,-23);
+    for(int i = 0; i < nAtoms; i++){
+        for(int j = 0; j < 3; j++){
+            energy += m*pow(velocities[i][j],2)/2.0;
+        }
+    }  
+    energy /= 256.0;
+    energy = energy * 2.0/((double)3.0*kb);
     return energy;
 }
