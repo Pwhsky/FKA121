@@ -1,222 +1,171 @@
-/* 
- * Help routines for E2
- *
- * E2code.c
- */
-
 #include <stdio.h>
-#include <math.h>
 #include <stdlib.h>
-#define N_PARTICLES 32
-#define PI 3.141592653589
+#include <math.h>
+#include <stdint.h>
+#include <gsl/gsl_const_mksa.h>
 
-#include <stdbool.h>
-#include "tools.h"
+int N = 32;
+double PI = 3.141592;
 
+double** transformation_matrix;
+double* P;
+double* Q;
+double** E;
+double* Etot;
+double* omega;
+double ** create_2D_array(unsigned int column_size,unsigned int row_size);
 
-/*
- * trans_matrix[N_PARTICLES][N_PARTICLES]: empty allocated array which
- * will be filled with sine transformation matrix
- * N_PARTICLES: number of particles in system
- */
-void construct_transformation_matrix(
-    double trans_matrix[N_PARTICLES][N_PARTICLES], int n_particles)
+void calc_acc(double *a, double *u, double m, double kappa,double alpha)
 {
-    double factor = 1 / ((double)n_particles + 1);
-    for(int i = 0; i < n_particles; i++){
-	for(int j = 0; j < n_particles; j++){
-	    trans_matrix[i][j] = sqrt(2 * factor)
-				 * sin((j + 1) * (i + 1) * PI * factor);
-	}
-    }
-}
+    a[0] = kappa*(u[1] - 2*u[0])/(m) + alpha*(u[1]*u[1]-2*u[0]*u[1])/m;
+    a[N-1] = kappa*(- 2*u[N-1] +
+                 u[N-2])/m + 
+                 alpha*(2*u[N-1]*u[N-2]-
+                 u[N-2]*u[N-2])/m;
 
-/*
- * Transformation matrix constucted in above function
- * q cartesian coordinate of particles
- * Q output normal modes coordinate
- * N_PARTICLES is number of particles in system
- */
-void transform_to_normal_modes(double trans_matrix[N_PARTICLES][N_PARTICLES],
-			       int n_particles,
-			       double *q, double *Q)
-{
-    for(int i = 0; i < n_particles; i++){
-	double sum = 0;
-	for(int j = 0; j < n_particles; j++){
-	    sum += q[j] * trans_matrix[i][j];
-	}
-	Q[i] = sum;
-    }
-}
-/* Calculating the acceleration for array of positions*/
-void calc_acc(double *a, double *u, double *m, double kappa, double alpha , int size_of_u)
-{
-  
-    /* Calculating the acceleration on the boundaries */
-
-    a[0] = kappa*(- 2*u[0] + u[1])/m[0];
-    a[0] *= 1 + alpha * u[1];
-    a[size_of_u - 1] = kappa*(u[size_of_u - 2] - 2*u[size_of_u - 1])/m[size_of_u - 1];
-    a[size_of_u - 1] *= 1 + alpha * ( - u[size_of_u - 2]);
-    
     /* Calculating the acceleration of the inner points */
-    for (int i = 1; i < size_of_u - 1; i++){
-        a[i] = kappa*(u[i - 1] - 2*u[i] + u[i + 1])/m[i];
-        a[i] *= (1 + alpha * (u[i + 1] - u[i-1]));
-    }
-}
-
-/* Set initial conditions of input arrays, particles start at zero, velocities so all energy is in mode 1. All masses is 1.*/
-void set_initial_condition(double *v, double *q, double *m)
-{   
-    double E0 = N_PARTICLES;
-    double Q0=0;
-    double P0 = sqrt(2*E0); 
-
-    for(int ix = 0; ix < N_PARTICLES; ix++)
-    {
-        q[ix] = 0;
-        m[ix] = 1;
-        v[ix] = sqrt((double) 2 / (N_PARTICLES + 1)) * sqrt(m[ix]) * P0 * sin( (ix + 1) * PI / (N_PARTICLES + 1)) / m[ix];
-       
-    }
-}
-/* Take a velocity verlet timestep such that states go from t -> t + dt*/
-void velocity_verlet_timestep(double dt, double *v, double *q, double *a, double *m, double kappa, double alpha, int n_particles)
-{
-    // v(t+dt/2)
-    for(int ix = 0; ix < n_particles; ix++)
-    {
-        v[ix] += 0.5 * dt * a[ix];
+    for (int i = 1; i < N-1; i++){
+        a[i] = kappa*(u[i + 1] - 2*u[i] + u[i - 1])/(m) + alpha*(u[i + 1]*u[i + 1] - u[i - 1]*u[i - 1] + 2*u[i]*(u[i - 1]-u[i + 1]))/m;
     }
 
-    // q(t+dt)
-    for(int ix = 0; ix < n_particles; ix++)
-    {
-        q[ix] += dt * v[ix];
-    }
-
-    // a(t+dt)
-    calc_acc((double*) a, (double*) q, (double*) m, (double) kappa, (double) alpha , (int) n_particles);
     
-    // v(t+dt)
-    for(int ix = 0; ix < n_particles; ix++)
-    {
-        v[ix] += 0.5 * dt * a[ix];
-    }
 }
-
-/* Function to run full velocity verlet simulation */
-void velocity_verlet(int n_timesteps, int timestep_interval, double dt, double *v, double *q, \
- double *m, double kappa, double alpha)
-{
-    // Initiate file names
-    char filename_result[] = {"verlet_results.csv"};
-    char filename_positions[] = {"verlet_positions.csv"};
-    char filename_velocities[] = {"verlet_velocities.csv"};
-    char filename_param[] = {"verlet_params.csv"};
-    char filename_energies[] = {"verlet_energies.csv"};
-    char filename_energy_average[] = {"verlet_energy_averages.csv"};
-    bool is_write;
-     
-    // Initiate arrays
-    double T = 1;
-    double a[N_PARTICLES];
-    double E[N_PARTICLES];
-    double Q[N_PARTICLES];
-    double P[N_PARTICLES];
-    double omega[N_PARTICLES];
-    double E_tot_dt[N_PARTICLES];
-    double E_time_average[N_PARTICLES];
-    
-    // Set constants, time will increase when the current timestep modulo timestep_interval is zero
-    int n_time_rows = n_timesteps/timestep_interval*dt;
-    int count = 0;
-    
-    // Setting energies to zero and eigenfrequencies for each particle according to formula
-    for(int ix = 0; ix < N_PARTICLES; ix++)
-    {
-        omega[ix] = 2 * sqrt( kappa / m[ix] ) * sin( (ix + 1) * PI / (2 * (N_PARTICLES + 1) ) );
-        E_tot_dt[ix] = 0; E_time_average[ix] = 0;
-    }
-
-    // Initiate transformation matrix
-    double trans_matrix[N_PARTICLES][N_PARTICLES];
-    construct_transformation_matrix((double (*)[N_PARTICLES]) trans_matrix, (int) N_PARTICLES);
-
-    // Get acceleration
-    calc_acc((double*) a, (double*) q, (double*) m, (double) kappa, (double) alpha , (int) N_PARTICLES);
-     
-    for(int tx = 1; tx < n_timesteps + 1; tx++)
-    {
-        // t -> t + dt
-        velocity_verlet_timestep((double) dt, (double*) v, (double*) q, (double*) a, (double*) m, (double) kappa, (double) alpha, (int) N_PARTICLES);
-
-        if(tx % timestep_interval == 0 || tx == 1)
-        {
-            //Tranform to normal modes
-            transform_to_normal_modes((double (*)[N_PARTICLES]) trans_matrix, (int) N_PARTICLES, q, Q);
-            transform_to_normal_modes((double (*)[N_PARTICLES]) trans_matrix, (int) N_PARTICLES, v, P);
-
-            // Calculate current and time-averaged energy 
-            for(int ix = 0; ix < N_PARTICLES; ix++)
-            {
-                E[ix] = 0.5 * ( pow(P[ix], 2) + pow(omega[ix], 2) * pow(Q[ix], 2) );
-
-                if( count != 0)
-                {   
-                    // Get current time-factor for time-averaged energy
-                    T = ( count * timestep_interval * dt);
-
-                    // Get current time-factor for time-averaged energy
-                    E_tot_dt[ix] +=  E[ix] * dt;
-                }
-                // Set time-averaged energy
-                E_time_average[ix] = E_tot_dt[ix]/T;
-            }
-            // Setting bool to true to open csv files with write, false to open with append
-            if (tx == 1) { is_write = true; } else { is_write = false; }
-            
-            // Saving values to csv files.
-            double result_vec[] = {tx * dt};
-            save_vector_to_csv(result_vec, 1, filename_result, is_write);
-            save_vector_to_csv(q, N_PARTICLES, filename_positions, is_write);
-            save_vector_to_csv(v, N_PARTICLES, filename_velocities, is_write);
-            save_vector_to_csv(E, N_PARTICLES, filename_energies, is_write);
-            save_vector_to_csv(E_time_average, N_PARTICLES, filename_energy_average, is_write);
-
-            // Incrementing counter
-            count++;
+void create_transformation_matrix(double** transformation_matrix){
+    double normalize = 1.0/((double)N +1.0);
+    for(int i = 0; i<N; i++){
+        for(int j = 0; j<N; j++){
+            transformation_matrix[i][j] = sqrt(2*normalize)*sin((j+1)*(i+1)*PI*normalize);
         }
     }
-    // Save simulation parameters dt and alpha in vector
-    double param_vec[] = {dt, alpha};
-    save_vector_to_csv(param_vec, 2, filename_param, true);
+}
+void transform(double** transformation_matrix,double* positions, double* Q){
+    
+    for(int i = 0; i<N;i++){
+        double sum = 0.0;
+        for(int j = 0; j<N;j++){
+            sum += positions[j]*transformation_matrix[i][j];
+        }
+        Q[i] = sum;
+    }
 }
 
-/* "Main function" of program*/
-int run()
-{
-    // Initiating arrays
-    double q[N_PARTICLES];
-    double v[N_PARTICLES];
-    double m[N_PARTICLES];
 
-    // Setting constants
-    double kappa = 1, alpha = 0.1;
+void velocity_verlet_multiple_steps(int n_timesteps, double *velocities,
+                                     double *q, double dt, double m, double kappa, double alpha){
 
-    // Set initial conditions for v, q and m (mass is just one)
-    set_initial_condition((double*) v, (double*) q, (double*) m);
+    double accelerations[N];
+
+    FILE *fp = fopen("T8.csv", "w");
+    fprintf(fp, "time,1,2,3,4,5\n");
+
+
+    calc_acc(accelerations, q, m, kappa,alpha);
+    for (int i = 1; i < n_timesteps; i++) {
     
-    // Simulation parameters. timestep_interval governs interval spacing between calculating energies and saving to csv.
-    int end_time = 1e6; double dt = 1e-1;
-    int n_timesteps = end_time / dt;
-    int timestep_interval = 1e3;
+        for (int j = 0; j < N; j++) {
+            velocities[j] += dt * 0.5 * accelerations[j];
+        }
+        
+        for (int j = 0; j < N; j++) {
+            q[j] += dt * velocities[j];
+        }
+        
+        calc_acc(accelerations, q, m, kappa,alpha);
+        for (int j = 0; j < N; j++) {
+            velocities[j] += dt * 0.5 * accelerations[j];
+        }
+        
+        
+        transform(transformation_matrix,q,Q);
+        transform(transformation_matrix,velocities,P);
+        //Compute hamiltonian for the system:
+        for(int ix = 0; ix < N; ix++)
+            {
+                E[ix][i] += (0.5 * (pow(P[ix], 2) + pow(omega[ix]*Q[ix], 2) ));
+    
+            }
+        fprintf(fp, "%f,%f,%f,%f,%f,%f\n", (i*dt), E[0][i],E[1][i],E[2][i],E[3][i],E[4][i]    );
+        
+    }
+}
 
-    // Running the velocity verlet function
-    velocity_verlet((int) n_timesteps, (int) timestep_interval, (double) dt, (double*) v, (double*) q, \
-                    (double*) m, (double) kappa, (double) alpha);
 
+
+
+int main(){
+    int n_timesteps = 25000;
+    double* time = calloc(sizeof(double),n_timesteps+1);
+
+    double kappa = 1; double dt = 0.1; double alpha = 0.0;double m = 1.0;
+
+    for(int i = 0; i < n_timesteps+1;i++){
+        time[i] = i*dt;
+    }
+
+    
+    double* q = malloc(sizeof(double)*N);
+    
+    double* v = calloc(sizeof(double), N);
+    P = calloc(sizeof(double),N);
+    P[0] = sqrt(2*N);
+    Q = calloc(N,sizeof(double));
+    omega = malloc(sizeof(double)*N);
+    Etot = malloc(sizeof(double)*N);
+    E = create_2D_array(N,n_timesteps);
+    
+
+    double factor = 1/((double) N+1);
+    //Set initial conditions:
+    
+    for(int i = 0; i < N; i++){
+        q[i] = 0.0;
+        v[i] = sqrt(2*factor) * (P[0]/sqrt(m)) * sin((i+1)*PI*factor);
+    }
+
+     for(int i = 0; i < n_timesteps;i++){
+        for(int j = 0; j < N;j++){
+
+        
+            if(i == 0){
+                E[j][i] = (0.5 * (pow(P[j], 2) + pow(omega[j]*Q[i], 2) ));
+            }else{
+                E[j][i] =0.0;
+            }
+        }
+     }
+   
+    for(int ix = 0; ix < N; ix++)
+    {   
+        omega[ix] = 2 * sqrt( kappa / m ) * sin( (ix + 1) * PI *0.5 * factor ) ;
+        Etot[ix] = 0;
+       
+    }
+
+
+    transformation_matrix = create_2D_array(N,N);
+
+    create_transformation_matrix(transformation_matrix);
+
+    transform(transformation_matrix,q,Q);
+    transform(transformation_matrix,v,P);
+
+    velocity_verlet_multiple_steps(n_timesteps, v,q, dt, m, kappa,alpha);
+
+    free(time);
     return 0;
+}
+
+
+double **
+create_2D_array(
+                unsigned int column_size,
+                unsigned int row_size
+               )
+{
+    double* arrayEntries = (double*)malloc(sizeof(double)*row_size*column_size);
+    double** array       = (double**)malloc(column_size*sizeof(double*));
+    for (int i = 0,j=0; i < column_size; ++i,j+=row_size) {
+        array[i] = arrayEntries +j;
+    }
+    return array;
 }
