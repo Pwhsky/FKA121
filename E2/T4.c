@@ -73,7 +73,7 @@ int main() {
 
     double F = computeVariance(block_averages,nElements);
     double n_s = Block_size*F/f;
-    printf("%lf\n",f);
+    printf("exact variance = %lf\n computed variance =  %lf ",f,F);
 
     return 0;
 }

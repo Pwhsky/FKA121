@@ -18,7 +18,7 @@ CFLAGS = \
 
 
 CFLAGS_OPT = \
-	     -O2 \
+	     -O3 \
 	     -march=native
 
 LIB = \

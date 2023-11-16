@@ -13,59 +13,12 @@ void verlet_step(double** positions, double** velocities, double** forces, int n
 double get_Ekin(double** v, int nAtoms, double m);
 double get_temp(double** velocities, int nAtoms, double m);
 
-void task1();
-void task2(){
-    int timeSteps = 100000;
-    
-
-    double dt = 0.1;
-    int nAtoms = 256; double a0 = 4.04; double cell_length = 4.0*a0; double m = 26.0/9649.0; //aluminum mass
-    double** positions = create_2D_array(256,3);
-    init_fcc(positions,4,a0);
-
-    // Create a random number generator
-    const gsl_rng_type *T;
-    gsl_rng *r;
-    gsl_rng_env_setup();
-    T = gsl_rng_default;
-    r = gsl_rng_alloc(T);
-    gsl_rng_set(r, time(NULL));
-    double lower_bound = -0.065*a0;
-    double upper_bound = 0.065*a0;
-    double** forces    = create_2D_array(256,3);
-    double** velocities = create_2D_array(256,3);
-    //Randomly perturb the positions:
-    for(int i = 0; i<nAtoms;i++){
-        for(int j=0; j < 3;j++){
-            double displacement = gsl_ran_flat(r, lower_bound, upper_bound);
-            positions[i][j] += displacement;
-            velocities[i][j] = 0.0;
-        }
-    }
-    double* kinetic_energy   = (double*)malloc(sizeof(double)*timeSteps);
-    double* potential_energy = (double*)malloc(sizeof(double)*timeSteps);
-    double* total_energy     = (double*)malloc(sizeof(double)*timeSteps);
-    double* temperature      = (double*)malloc(sizeof(double)*timeSteps);
-
-    double* time = (double*)malloc(sizeof(double)*timeSteps);
-
-    get_forces_AL(forces,positions,cell_length,nAtoms);
-    for(int t = 0; t< timeSteps;t++){
-        time[t] = t*dt; 
-        verlet_step(positions,velocities,forces, nAtoms, dt, m,  cell_length);
-        kinetic_energy[t]   = get_Ekin(velocities,nAtoms,m);
-        potential_energy[t] = get_energy_AL(positions,cell_length,nAtoms);
-        total_energy[t]     = kinetic_energy[t]+potential_energy[t];
-        temperature[t]      = get_temp(velocities,nAtoms,m);
-    }
-    
-    FILE *fp = fopen("task2.csv", "w");
-    fprintf(fp, "time,Ekin,Epot,Etot,temp\n");
-
-    for (int i = 0; i < timeSteps; i++) {
-        fprintf(fp, "%lf,%lf,%lf,%lf,%lf\n",time[i],kinetic_energy[i],potential_energy[i],total_energy[i],temperature[i]);
-    }
-    fclose(fp);
+void task1(); //Lattice parameter
+void task2(); //material relaxation
+void task3() //Molecular dynamics
+{
+    //initialize particle, positions and velocity
+    //
 
 }
 
@@ -76,8 +29,9 @@ run(
    )
 {   
     //task1();
-     task2();
-	
+    task2();
+	//task3();
+    
     return 0;
 }
 
@@ -112,6 +66,60 @@ void task1(){
     }
     fclose(fp);
 
+
+}
+void task2(){
+    int timeSteps = 100000;
+    
+    double dt = 0.05; //0.001 0.01
+    int nAtoms = 256; double a0 = 4.04; double cell_length = 4.0*a0; double m = 26.0/9649.0; //aluminum mass
+    double** positions = create_2D_array(256,3);
+    init_fcc(positions,4,a0);
+
+    // Create a random number generator
+    const gsl_rng_type *T;
+    gsl_rng *r;
+    gsl_rng_env_setup();
+    T = gsl_rng_default; 
+    r = gsl_rng_alloc(T);
+    gsl_rng_set(r, time(NULL));
+    double lower_bound = -0.065*a0;
+    double upper_bound = 0.065*a0;
+    double** forces    = create_2D_array(256,3);
+    double** velocities = create_2D_array(256,3);
+    //Randomly perturb the positions:
+    for(int i = 0; i<nAtoms;i++){
+        for(int j=0; j < 3;j++){
+            double displacement = gsl_ran_flat(r, lower_bound, upper_bound);
+            positions[i][j] += displacement;
+            velocities[i][j] = 0.0;
+        }
+    }
+    double* kinetic_energy   = (double*)malloc(sizeof(double)*timeSteps);
+    double* potential_energy = (double*)malloc(sizeof(double)*timeSteps);
+    double* total_energy     = (double*)malloc(sizeof(double)*timeSteps);
+    double* temperature      = (double*)malloc(sizeof(double)*timeSteps);
+
+    double* time = (double*)malloc(sizeof(double)*timeSteps);
+
+    get_forces_AL(forces,positions,cell_length,nAtoms);
+    for(int t = 0; t< timeSteps;t++){
+        time[t] = t*dt; 
+        verlet_step(positions,velocities,forces, nAtoms, dt, m,  cell_length);
+        kinetic_energy[t]   = get_Ekin(velocities,nAtoms,m);
+        potential_energy[t] = get_energy_AL(positions,cell_length,nAtoms);
+        total_energy[t]     = kinetic_energy[t]+potential_energy[t];
+        temperature[t]      = get_temp(velocities,nAtoms,m);
+    }
+    
+    FILE *fp = fopen("task2bigdt.csv", "w");
+    fprintf(fp, "time,Ekin,Epot,Etot,temp\n");
+
+    for (int i = 0; i < timeSteps; i++) {
+        fprintf(fp, "%lf,%lf,%lf,%lf,%lf\n",time[i],kinetic_energy[i],potential_energy[i],total_energy[i],temperature[i]);
+    }
+    fclose(fp);
+
 }
 
 void verlet_step(double** positions, double** velocities, double** forces, int nAtoms, double dt,  double m, double L){
@@ -131,6 +139,8 @@ void verlet_step(double** positions, double** velocities, double** forces, int n
         }
     }
 }
+
+
 double get_Ekin(double** velocities, int nAtoms, double m){
     double energy = 0.0;
     for(int i = 0; i < nAtoms; i++){
@@ -148,7 +158,7 @@ double get_temp(double** velocities, int nAtoms, double m){
             energy += m*pow(velocities[i][j],2)/2.0;
         }
     }  
-    energy /= 256.0;
-    energy = energy * 2.0/((double)3.0*kb);
+    energy /= (double)nAtoms;
+    energy = energy * 2.0/((double)3.0*kb); //convert to kelvin
     return energy;
 }
