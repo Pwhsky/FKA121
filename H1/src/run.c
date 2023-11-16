@@ -9,6 +9,7 @@
 #include <gsl/gsl_randist.h>
 
 
+
 void verlet_step(double** positions, double** velocities, double** forces, int nAtoms, double dt,  double m, double L);
 double get_Ekin(double** v, int nAtoms, double m);
 double get_temp(double** velocities, int nAtoms, double m);
@@ -17,7 +18,7 @@ void task1(); //Lattice parameter
 void task2(); //material relaxation
 void task3() //Molecular dynamics
 {
-    //initialize particle, positions and velocity
+    //initialize particle, positions and velocities
     //
 
 }
@@ -69,9 +70,9 @@ void task1(){
 
 }
 void task2(){
-    int timeSteps = 100000;
+    int timeSteps = 100;
     
-    double dt = 0.05; //0.001 0.01
+    double dt = 0.1; //0.001 0.01
     int nAtoms = 256; double a0 = 4.04; double cell_length = 4.0*a0; double m = 26.0/9649.0; //aluminum mass
     double** positions = create_2D_array(256,3);
     init_fcc(positions,4,a0);
