@@ -64,24 +64,24 @@ int main(){
     int n_timesteps = 10000;
     double* time = calloc(sizeof(double),n_timesteps+1);
     int n_particles  = 3;
-    double kappa = 1600/16.0218; double dt = 0.00003; double carbon_mass = 12.01/m_asu; double oxygen_mass = 15.999/m_asu;
+    double kappa = 1600/16.0218; double dt = 0.0001; double carbon_mass = 12.01/m_asu; double oxygen_mass = 15.999/m_asu;
     for(int i = 0; i < n_timesteps+1;i++){
         time[i] = i*dt;
     }
     
 
-    double* q1 = calloc(sizeof(double),n_timesteps+1);
-    double* q2 = calloc(sizeof(double),n_timesteps+1);
-    double* q3 = calloc(sizeof(double),n_timesteps+1);
-    double* Ekin = calloc(sizeof(double),n_timesteps+1);
-    double* Epot = calloc(sizeof(double),n_timesteps+1);    
-    double* Etot =  calloc(sizeof(double),n_timesteps+1);  
+    double* q1 = calloc(sizeof(double),n_timesteps);
+    double* q2 = calloc(sizeof(double),n_timesteps);
+    double* q3 = calloc(sizeof(double),n_timesteps);
+    double* Ekin = calloc(sizeof(double),n_timesteps);
+    double* Epot = calloc(sizeof(double),n_timesteps);    
+    double* Etot =  calloc(sizeof(double),n_timesteps);  
     double* m = calloc(sizeof(double),n_particles);
     double* v = calloc(sizeof(double), n_particles);
     m[0] = oxygen_mass; m[1] = carbon_mass;m[2] = oxygen_mass;
   
 
-    q1[0] = 0.01; q2[0] = 0.005; q3[0] = -0.005;
+    q1[0] = 0.1; q2[0] = 0.005; q3[0] = -0.005;
 
   
     velocity_verlet_multiple_steps(n_timesteps, n_particles, v,q1,q2,q3, dt, m, kappa,Ekin,Epot);

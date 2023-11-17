@@ -9,7 +9,7 @@ for i in range(1,32):
     plt.loglog(array[:,0],array[:,i],label = f"{i}")
 ax.set_xlabel("time (ps)")
 ax.set_ylabel("energy (Ev)")
-ax.title("Anharmonic oscillator")
+
 
 
 fig.savefig('T10.pdf')

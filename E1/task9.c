@@ -93,15 +93,14 @@ void velocity_verlet_multiple_steps(int n_timesteps, double *velocities,
 
 
 int main(){
-    int n_timesteps = 25000;
+    int n_timesteps = 5000000;
     double* time = calloc(sizeof(double),n_timesteps+1);
 
-    double kappa = 1; double dt = 0.1; double alpha = 0.1;double m = 1.0;
+    double kappa = 1; double dt = 0.1; double alpha = 0.01;double m = 1.0;
 
     for(int i = 0; i < n_timesteps+1;i++){
         time[i] = i*dt;
     }
-
     
     double* q = malloc(sizeof(double)*N);
     

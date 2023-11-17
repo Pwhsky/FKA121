@@ -109,9 +109,9 @@ void velocity_verlet_multiple_steps(int n_timesteps, double *velocities,
 
 
 int main(){
-    int n_timesteps = 1e6;
+    int n_timesteps = 2e7;
 
-    double kappa = 1; double dt = 0.1; double alpha = 0.1;double m = 1.0;
+    double kappa = 1; double dt = 0.15; double alpha = 0.1;double m = 1.0;
 
 
     
