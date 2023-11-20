@@ -9,153 +9,84 @@
 #include <gsl/gsl_randist.h>
 
 // Isothermal compressability for aluminium
-double kappa_T = 1.0/760000.0;
+double kappa_T = 0.01385*1e-4;
 double kb = 8.6173e-5;
 
-void verlet_step(double** positions, double** velocities, double** forces, int nAtoms, double dt,  double m, double L);
+int nAtoms = 256;
+double* temperature;
+double* pressure;
+double* lattice_constant;
+double** sample_trajectory; double** positions;
+double** velocities; double** forces;
+double* potential_energy; double* kinetic_energy; double* total_energy;
+gsl_rng *r;
+const gsl_rng_type *T;
+int timeSteps;
+void verlet_step(double** positions, double** velocities, double** forces,
+                 int nAtoms, double dt,  double m, double L);
+                 
 double get_Ekin(double** v, int nAtoms, double m);
 double get_temp(double** velocities, int nAtoms, double m);
 double get_pressure(double T, double W, double V,int nAtoms);
 double get_alphaT(double T_eq, double T, double dt, double tau);
 double get_alphaP(double P_eq,double P,double dt,double tau);
-double get_MSD(double** positions,double** initial_positions,int nAtoms);
+
+   
+double  kinetic= 0, squaredAverage= 0,  averageSquared= 0,alphaT = 1.0, 
+alphaP = 1.0; int timeSteps;
+
+double lower_bound = -0.065*4.03;
+double upper_bound = 0.065*4.03;
 
 void task1(); //Lattice parameter
 void task2(); //material relaxation
-void task3() //Molecular dynamics
-{
-    int timeSteps = 200000;
-    
-    double dt = 0.001; double T_eq = 973.15; double P_eq =1; double tau_T = 300*dt; double tau_P = 300*dt; 
-    int nAtoms = 256; double a0 = 4.03; double cell_length = 4.0*a0; double m = 26.0/9649.0; //aluminum mass
-
-
-    double** positions = create_2D_array(256,3);
-    init_fcc(positions,4,a0);
-   
-    // Create a random number generator
-    const gsl_rng_type *T;
-    gsl_rng *r;
-    gsl_rng_env_setup();
-    T = gsl_rng_default; 
-    r = gsl_rng_alloc(T);
-    gsl_rng_set(r, time(NULL));
-    double lower_bound = -0.065*a0;
-    double upper_bound = 0.065*a0;
-    double** forces    = create_2D_array(256,3);
-    double** velocities = create_2D_array(256,3);
-    //Randomly perturb the positions:
-    for(int i = 0; i<nAtoms;i++){
-        for(int j=0; j < 3;j++){
-            double displacement = gsl_ran_flat(r, lower_bound, upper_bound);
-            positions[i][j] += displacement;
-            velocities[i][j] = 0.0;
-        }
-    }
-
-    double** sample_trajectory = create_2D_array(timeSteps,3);
-    double* temperature      = (double*)malloc(sizeof(double)*timeSteps);
-    double* pressure         = (double*)malloc(sizeof(double)*timeSteps);
-    double* lattice_constant = (double*)malloc(sizeof(double)*timeSteps);
-    double alphaT = 1.0;
-    double alphaP = 1.0;
-    double V         = cell_length*cell_length*cell_length;
-    get_forces_AL(forces,positions,cell_length,nAtoms);
-    
-
-    for(int t = 0; t< timeSteps;t++){
-
-
-        if(t < 1000){
-            T_eq = 1200.0;
-        }else{
-            T_eq = 973.15;}
-
-        for(int i = 0; i < nAtoms; i++){
-            for(int j = 0; j < 3; j++){
-                velocities[i][j] += dt * 0.5 * forces[i][j]/m;
-
-                positions[i][j] += dt*velocities[i][j];
-            }
-        }   
-        get_forces_AL(forces,positions,cell_length,nAtoms);
-
-
-        for(int i = 0; i < nAtoms; i++){
-            for(int j = 0; j < 3; j++){
-                velocities[i][j] += dt*0.5*forces[i][j]/m;
-            }
-        }   
-        //Rescale:
-
-     
-        double W         = get_virial_AL(positions, cell_length,nAtoms)/4.0;
-        double temp      = get_temp(velocities,nAtoms,m);
-        double press     = get_pressure(temp,W,V,nAtoms);
-        V                   = cell_length*cell_length*cell_length;
-        alphaT              = sqrt(get_alphaT(T_eq,temp,dt,tau_T));
-        alphaP              = cbrt(get_alphaP(P_eq,press,dt,tau_P));
-        cell_length *= alphaP;
-
-        for(int i = 0; i < nAtoms; i++){
-            for(int j = 0; j < 3; j++){
-                velocities[i][j] *= alphaT;
-            }
-        }   
-        for(int i = 0; i < nAtoms; i++){
-            for(int j = 0; j < 3; j++){
-                positions[i][j] *= alphaP;
-            }
-        }   
-
-        
-        //Update alphas
-
-
-        lattice_constant[t] = cell_length/4.0;
-        temperature[t]      = temp;
-        pressure[t]         = press;
-        sample_trajectory[t][0] = positions[0][0];
-        sample_trajectory[t][1] = positions[1][0];
-        sample_trajectory[t][2] = positions[2][0];
-    }
-    
-    FILE *fp = fopen("task3.csv", "w");
-    fprintf(fp, "time,temperature,pressure,lattice,MSD\n");
-
-    for (int i = 0; i < timeSteps; i++) {
-        fprintf(fp, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",i*dt,temperature[i],pressure[i],lattice_constant[i],
-                                                            sample_trajectory[i][0],sample_trajectory[i][1],sample_trajectory[i][2]);
-    }
-    fclose(fp);
-}
+void task3(); //Pressure and temperature for solid  AND heat capacity
+void task4(); //Pressure and temperature for liquid AND heat capacity
 
 int
 run(
     int argc,
     char *argv[]
    )
-{   
+{      
+     // Create a random number generator
+    
+    gsl_rng_env_setup();
+    T = gsl_rng_default; 
+    r = gsl_rng_alloc(T);
+    gsl_rng_set(r, time(NULL));
+    timeSteps = 200;
+    temperature      = (double*)malloc(sizeof(double)*timeSteps); 
+    pressure         = (double*)malloc(sizeof(double)*timeSteps);
+    lattice_constant = (double*)malloc(sizeof(double)*timeSteps);
+    kinetic_energy   = (double*)malloc(sizeof(double)*timeSteps);
+    potential_energy = (double*)malloc(sizeof(double)*timeSteps);
+    total_energy     = (double*)malloc(sizeof(double)*timeSteps);
+    positions = create_2D_array(256,3);
+    velocities = create_2D_array(256,3);
+    forces    = create_2D_array(256,3);
+    sample_trajectory = create_2D_array(timeSteps,3);
+
     //task1();
     //task2();
-	task3();
+	//task3();
+    task4();
     
-    return 0;
+    return 0;  
 }
 
 void task1(){
-    int nAtoms = 256;
+
     int n_trials = 15;
     
-    double lattice_params[n_trials];
-    double potential_energies[n_trials];
-    for(int i = 0; i<n_trials; i++){
+    double lattice_params[n_trials], potential_energies[n_trials];
+    
+    for(int i = 0; i<n_trials; i++)
         lattice_params[i] = 4.05- (n_trials/2.0 - i)*0.01;
-    }
 
     for(int i = 0; i<n_trials; i++){
     
-        double** positions = create_2D_array(256,3);
+     
         double a0 = lattice_params[i];
         double cell_length = 4.0*a0;
         init_fcc(positions,4,a0);
@@ -169,32 +100,18 @@ void task1(){
     FILE *fp = fopen("task1.csv", "w");
     fprintf(fp, "Epot,a0\n");
 
-    for (int i = 0; i < n_trials; i++) {
+    for (int i = 0; i < n_trials; i++) 
         fprintf(fp, "%lf,%lf\n",potential_energies[i],lattice_params[i]);
-    }
-    fclose(fp);
+    fclose(fp);  
 
 
 }
 void task2(){
-    int timeSteps = 100;
     
     double dt = 0.1; //0.001 0.01
-    int nAtoms = 256; double a0 = 4.04; double cell_length = 4.0*a0; double m = 26.0/9649.0; //aluminum mass
-    double** positions = create_2D_array(256,3);
+    double a0 = 4.04; double cell_length = 4.0*a0; double m = 26.0/9649.0;
     init_fcc(positions,4,a0);
 
-    // Create a random number generator
-    const gsl_rng_type *T;
-    gsl_rng *r;
-    gsl_rng_env_setup();
-    T = gsl_rng_default; 
-    r = gsl_rng_alloc(T);
-    gsl_rng_set(r, time(NULL));
-    double lower_bound = -0.065*a0;
-    double upper_bound = 0.065*a0;
-    double** forces    = create_2D_array(256,3);
-    double** velocities = create_2D_array(256,3);
     //Randomly perturb the positions:
     for(int i = 0; i<nAtoms;i++){
         for(int j=0; j < 3;j++){
@@ -203,13 +120,7 @@ void task2(){
             velocities[i][j] = 0.0;
         }
     }
-    double* kinetic_energy   = (double*)malloc(sizeof(double)*timeSteps);
-    double* potential_energy = (double*)malloc(sizeof(double)*timeSteps);
-    double* total_energy     = (double*)malloc(sizeof(double)*timeSteps);
-    double* temperature      = (double*)malloc(sizeof(double)*timeSteps);
-
     double* time = (double*)malloc(sizeof(double)*timeSteps);
-
     get_forces_AL(forces,positions,cell_length,nAtoms);
     for(int t = 0; t< timeSteps;t++){
         time[t] = t*dt; 
@@ -223,79 +134,216 @@ void task2(){
     FILE *fp = fopen("task2bigdt.csv", "w");
     fprintf(fp, "time,Ekin,Epot,Etot,temp\n");
 
-    for (int i = 0; i < timeSteps; i++) {
-        fprintf(fp, "%lf,%lf,%lf,%lf,%lf\n",time[i],kinetic_energy[i],potential_energy[i],total_energy[i],temperature[i]);
-    }
+    for (int i = 0; i < timeSteps; i++) 
+        fprintf(fp, "%lf,%lf,%lf,%lf,%lf\n",time[i],kinetic_energy[i],
+                    potential_energy[i],total_energy[i],temperature[i]);
     fclose(fp);
 
 }
 
-void verlet_step(double** positions, double** velocities, double** forces, int nAtoms, double dt,  double m, double L){
+void task3() //Molecular dynamics
+{
+    
+    double dt = 0.001; double T_eq = 773.15; double P_eq =1; 
+    double tau_T = 100*dt; double tau_P = 300*dt; 
+    double a0 = 4.04; double cell_length = 4.0*a0; double m = 26.0/9649.0; 
 
+    init_fcc(positions,4,a0);
+    //Randomly perturb the positions:
+    for(int i = 0; i<nAtoms;i++){
+        for(int j=0; j < 3;j++){
+            double displacement = gsl_ran_flat(r, lower_bound, upper_bound);
+            positions[i][j] += displacement;
+            velocities[i][j] = 0.0;
+        }
+    }
+    double V  = cell_length*cell_length*cell_length;
+
+
+    double sum = 0.0;
+    get_forces_AL(forces,positions,cell_length,nAtoms);
+    for(int t = 0; t< timeSteps;t++){
+
+        for(int i = 0; i < nAtoms; i++){
+            for(int j = 0; j < 3; j++){
+                velocities[i][j] += dt * 0.5 * forces[i][j]/m;
+                positions[i][j] += dt*velocities[i][j];
+            }
+        }   
+        get_forces_AL(forces,positions,cell_length,nAtoms);
+
+
+        for(int i = 0; i < nAtoms; i++)
+            for(int j = 0; j < 3; j++)
+                velocities[i][j] += dt*0.5*forces[i][j]/m;
+        
+        //Rescale:
+
+     
+        double W         = get_virial_AL(positions, cell_length,nAtoms)/4.0;
+        double temp      = get_temp(velocities,nAtoms,m);
+        double press     = get_pressure(temp,W,V,nAtoms);
+        V                = cell_length*cell_length*cell_length;
+        alphaT           = sqrt(get_alphaT(T_eq,temp,dt,tau_T));
+        alphaP           = cbrt(get_alphaP(P_eq,press,dt,tau_P));
+        cell_length *= alphaP;
+
+        for(int i = 0; i < nAtoms; i++){
+            for(int j = 0; j < 3; j++){
+                velocities[i][j] *= alphaT;
+                positions[i][j] *= alphaP;
+            }
+        }   
+        //Update alphas
+        lattice_constant[t] = cell_length/4.0;
+        temperature[t]      = temp;
+        pressure[t]         = press;
+        for (int i = 0; i<3;i++)
+            sample_trajectory[t][i]=positions[0][i];
+        
+      //Compute fluctuations:
+        if (t > 2500){
+            kinetic = get_Ekin(velocities,nAtoms,m)/(double)nAtoms;
+            squaredAverage = (kinetic/(double)nAtoms)*(kinetic/(double)nAtoms);
+            averageSquared = (kinetic*kinetic)/(double)nAtoms;
+            sum += averageSquared-squaredAverage;
+        }
+        sum += averageSquared-squaredAverage;
+       
+    }
+    sum /= (double)timeSteps;
+    double heatCapacity = (3*nAtoms*kb/2.0)/
+    (1- 2*sum/(3.0*nAtoms*kb*kb*T_eq*T_eq));
+
+    FILE *fp = fopen("task3.csv", "w");
+    fprintf(fp, "time,temperature,pressure,lattice,MSD\n");
+
+    for (int i = 0; i < timeSteps; i++) 
+        fprintf(fp, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",i*dt,temperature[i],
+        pressure[i],lattice_constant[i],sample_trajectory[i][0],
+        sample_trajectory[i][1],sample_trajectory[i][2]);
+    
+    printf("Heat Capacity for 773.15K = %lf \n",heatCapacity);
+    fclose(fp);
+}
+void task4() //Molecular dynamics
+{
+
+    double dt = 0.001; double T_eq = 973.15; double P_eq =1; 
+    double tau_T = 100*dt; double tau_P = 300*dt; 
+    double a0 = 4.04;  double cell_length = 4.0*a0; double m = 26.0/9649.0;
+    init_fcc(positions,4,a0);
+
+    //Randomly perturb the positions:
+    for(int i = 0; i<nAtoms;i++){
+        for(int j=0; j < 3;j++){
+            positions[i][j] += gsl_ran_flat(r, lower_bound, upper_bound);
+            velocities[i][j] = 0.0;
+        }
+    }
+    
+
+    double V                = cell_length*cell_length*cell_length;
+    double sum = 0.0;
+    get_forces_AL(forces,positions,cell_length,nAtoms);
+    for(int t = 0; t< timeSteps;t++){
+
+        //Melting routine
+        if(t < 1000){ T_eq = 2000.0;}
+        else if (t<2000){T_eq -= 0.82685;}
+        else{ T_eq = 973.15;}
+
+        for(int i = 0; i < nAtoms; i++){
+            for(int j = 0; j < 3; j++){
+                velocities[i][j] += dt * 0.5 * forces[i][j]/m;
+                positions[i][j]  += dt*velocities[i][j];
+            }
+        }
+        get_forces_AL(forces,positions,cell_length,nAtoms);
+
+
+        for(int i = 0; i < nAtoms; i++)
+            for(int j = 0; j < 3; j++)
+                velocities[i][j] += dt*0.5*forces[i][j]/m;
+
+        double W         = get_virial_AL(positions, cell_length,nAtoms)/4.0;
+        double temp      = get_temp(velocities,nAtoms,m);
+        double press     = get_pressure(temp,W,V,nAtoms);
+        V                = cell_length*cell_length*cell_length;
+        alphaT           = sqrt(get_alphaT(T_eq,temp,dt,tau_T));
+        alphaP           = cbrt(get_alphaP(P_eq,press,dt,tau_P));
+        cell_length *= alphaP;
+
+        for(int i = 0; i < nAtoms; i++){
+            for(int j = 0; j < 3; j++){
+                velocities[i][j] *= alphaT;
+                positions[i][j]  *= alphaP;
+            }
+        }   
+        lattice_constant[t] = cell_length/4.0;
+        temperature[t]      = temp;
+        pressure[t]         = press;
+        for (int i = 0; i<3;i++)
+            sample_trajectory[t][i]=positions[0][i];
+        //Compute fluctuations:
+        if (t > 2500){
+            kinetic = get_Ekin(velocities,nAtoms,m)/(double)nAtoms;
+            squaredAverage = (kinetic/(double)nAtoms)*(kinetic/(double)nAtoms);
+            averageSquared = (kinetic*kinetic)/(double)nAtoms;
+            sum += averageSquared-squaredAverage;
+        }
+        
+    }
+    sum /= (double)timeSteps;
+    double heatCapacity = (3*nAtoms*kb/2.0)/(1- 2*sum/
+    (3.0*nAtoms*kb*kb*T_eq*T_eq) );
+    FILE *fp = fopen("task4.csv", "w");
+    fprintf(fp, "time,temperature,pressure,lattice,MSD\n");
+    
+    for (int i = 0; i < timeSteps; i++) 
+        fprintf(fp, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",i*dt,
+    temperature[i],pressure[i], lattice_constant[i],
+      sample_trajectory[i][0],sample_trajectory[i][1],sample_trajectory[i][2]);
+    
+    fclose(fp);
+    printf("Heat Capacity for 973.15K = %lf \n",heatCapacity);
+}
+
+
+void verlet_step(double** positions, double** velocities, double** forces,
+                 int nAtoms, double dt,  double m, double L){
     for(int i = 0; i < nAtoms; i++){
         for(int j = 0; j < 3; j++){
             velocities[i][j] += dt*forces[i][j]/(2.0*m);
             positions[i][j] += dt*velocities[i][j];
         }
     }
-
     get_forces_AL(forces,positions, L, nAtoms);
-
-    for(int i = 0; i < nAtoms; i++){
-        for(int j = 0; j < 3; j++){
+    for(int i = 0; i < nAtoms; i++)
+        for(int j = 0; j < 3; j++)
             velocities[i][j] += dt*forces[i][j]/(2.0*m);
-        }
-    }
+
 }
-void verlet_stepT3(double** positions, double** velocities, double** forces, int nAtoms, double dt,  double m, double L){
-
-    for(int i = 0; i < nAtoms; i++){
-        for(int j = 0; j < 3; j++){
-            velocities[i][j] += dt*forces[i][j]/(2.0*m);
-            positions[i][j] += dt*velocities[i][j];
-        }
-    }
-
-    get_forces_AL(forces,positions, L, nAtoms);
-
-    for(int i = 0; i < nAtoms; i++){
-        for(int j = 0; j < 3; j++){
-            velocities[i][j] += dt*forces[i][j]/(2.0*m);
-        }
-    }
-}
-
 
 double get_Ekin(double** velocities, int nAtoms, double m){
     double energy = 0.0;
-    for(int i = 0; i < nAtoms; i++){
-        for(int j = 0; j < 3; j++){
+    for(int i = 0; i < nAtoms; i++)
+        for(int j = 0; j < 3; j++)
             energy += m*pow(velocities[i][j],2)/2.0;
-        }
-    }  
     return energy;
 }
 double get_temp(double** velocities, int nAtoms, double m){
-    double energy = 0.0;
-    for(int i = 0; i < nAtoms; i++){
-        for(int j = 0; j < 3; j++){
-            energy += m*pow(velocities[i][j],2)/2.0;
-        }
-    }  
-
+    double energy = get_Ekin(velocities,nAtoms,m);
     energy = energy * 2.0/((double)3.0*kb*nAtoms); //convert to kelvin
     return energy;
 }
 double get_alphaT(double T_eq, double T,double dt,double tau){
-
     return 1 + (2*dt/(tau))*(T_eq-T)/(T); 
 }
 
 double get_alphaP(double P_eq, double P, double dt, double tau){
-
     return 1 - (kappa_T*dt/(tau))*(P_eq-P); 
 }
 double get_pressure(double T, double W, double V,int nAtoms){
-
     return ((256*kb*T+W*1602000.0)/V);
 }
