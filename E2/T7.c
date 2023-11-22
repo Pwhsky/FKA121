@@ -6,7 +6,7 @@
 #include <gsl/gsl_rng.h>
 #include <string.h>
 #define PI 3.14159265359
-#define N 100000
+#define N 1000000
 
 int nPoints = 100;
 /*Generate N points x_i uniformly on the interval [0,1] and evaluate the
@@ -112,7 +112,7 @@ int main() {
     int block_size; int lag;
     for(int i = 0; i< nPoints; i++){
         block_size = i*20;
-        lag = i*10;
+        lag = i*20;
 
         correlation_lags[i] = lag;
         block_sizes[i] = block_size;
