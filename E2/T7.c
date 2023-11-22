@@ -52,7 +52,7 @@ double block_average(double *data,
 }
 
 double autocorrelation(double *data, int time_lag_ind, int max_shift_ind) {
-    double s = exp(-2.0);
+    
     double correlation = 0.0;
     double phi = 0.0;
 
@@ -63,7 +63,7 @@ double autocorrelation(double *data, int time_lag_ind, int max_shift_ind) {
         correlation += data[j+time_lag_ind]*data[j]/(double)(max_shift_ind);
     }
     
-    phi = correlation;
+    phi = correlation/(variance(data,N));
 
 
     return phi;
@@ -112,7 +112,7 @@ int main() {
     int block_size; int lag;
     for(int i = 0; i< nPoints; i++){
         block_size = i*20;
-        lag = i*20;
+        lag = i*10;
 
         correlation_lags[i] = lag;
         block_sizes[i] = block_size;
@@ -122,7 +122,19 @@ int main() {
     write_to_file("block_averaging.csv",block_sizes,block_values);
     write_to_file("correlation.csv",correlation_lags,correlation_values);
 
+    //Determine statistical inefficency by finding the value for exp(-2)
+    double s = exp(-2.0);
+    int trial = 0;
+    for(int i = 0; i<nPoints;i++){
+        if ( sqrt((s-correlation_values[i])*(s-correlation_values[i])) < sqrt((s-correlation_values[trial])*(s-correlation_values[trial] ))){
+            trial = i;
+        }
+    }
+    double statistical_inefficency = correlation_lags[trial];
+    printf("Statistical inefficency for autocorrelation function = %lf",statistical_inefficency);
 
+
+    
 
     return 0;
 }
