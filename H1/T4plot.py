@@ -25,7 +25,7 @@ fig,ax = plt.subplots(figsize=(10,7))
 ax.plot(array[:,0],array[:,2])
 
 ax.set_xlabel('Time (ps) ',fontsize=15)
-ax.set_ylabel('Pressure(eV/$Å^3$)',fontsize=15)
+ax.set_ylabel('Pressure (bar)',fontsize=15)
 fig.savefig('task4pressure.pdf')
 
 fig,ax = plt.subplots(figsize=(10,7))

@@ -38,11 +38,10 @@ alphaP = 1.0; int timeSteps;
 double lower_bound = -0.065*4.03;
 double upper_bound = 0.065*4.03;
 
-void task1(); //Lattice parameter
-void task2(); //material relaxation
-void task3(); //Pressure and temperature for solid  AND heat capacity
-void task4(); //Pressure and temperature for liquid AND heat capacity
-
+void lattice_parameter_simulation(); //Lattice parameter
+void energy_conservation_simulation(); //material relaxation
+void solid_aluminum_simulation(); //Pressure and temperature for solid  AND heat capacity
+void liquid_aluminum_simulation(); //Pressure and temperature for liquid AND heat capacity AND radial distribution function
 int
 run(
     int argc,
@@ -67,15 +66,15 @@ run(
     forces    = create_2D_array(256,3);
     sample_trajectory = create_2D_array(timeSteps,3);
 
-    //task1();
-    //task2();
-	//task3();
-    task4();
+    //lattice_parameter_simulation();
+    //energy_conservation_simulation();
+	//solid_aluminum_simulation();
+    liquid_aluminum_simulation();
     
     return 0;  
 }
 
-void task1(){
+void lattice_parameter_simulation(){
 
     int n_trials = 15;
     double lattice_params[n_trials], potential_energies[n_trials];
@@ -95,7 +94,7 @@ void task1(){
 
     }
 
-    FILE *fp = fopen("task1.csv", "w");
+    FILE *fp = fopen("lattice_parameter_simulation.csv", "w");
     fprintf(fp, "Epot,a0\n");
 
     for (int i = 0; i < n_trials; i++) 
@@ -104,7 +103,7 @@ void task1(){
 
 
 }
-void task2(){
+void energy_conservation_simulation(){
     
     double dt = 0.1; //0.001 0.01
     double a0 = 4.04; double cell_length = 4.0*a0; double m = 26.0/9649.0;
@@ -122,7 +121,7 @@ void task2(){
     }
     
     //Writing
-    FILE *fp = fopen("task2bigdt.csv", "w");
+    FILE *fp = fopen("energy_conservation_simulationbigdt.csv", "w");
     fprintf(fp, "time,Ekin,Epot,Etot,temp\n");
     for (int i = 0; i < timeSteps; i++) 
         fprintf(fp, "%lf,%lf,%lf,%lf,%lf\n",i*dt,kinetic_energy[i],
@@ -131,7 +130,7 @@ void task2(){
 
 }
 
-void task3() //Molecular dynamics
+void solid_aluminum_simulation() //Molecular dynamics
 {
     
     double dt = 0.001; double T_eq = 773.15; double P_eq =1; 
@@ -183,7 +182,7 @@ void task3() //Molecular dynamics
     }
 
     //writing and avg temp computation
-    FILE *fp = fopen("task3.csv", "w");
+    FILE *fp = fopen("solid_aluminum_simulation.csv", "w");
     fprintf(fp, "time,temperature,pressure,lattice,pos1,pos2\n");
     double avgTemp = 0.0;
     for (int i = 0; i < timeSteps; i++){
@@ -200,7 +199,7 @@ void task3() //Molecular dynamics
     printf("Heat Capacity for 773.15K = %lf \n",heatCapacity);
     fclose(fp);
 }
-void task4() //Molecular dynamics
+void liquid_aluminum_simulation() //Molecular dynamics
 {
 
     double dt = 0.001; double T_eq = 973.15; double P_eq =1; 
@@ -208,13 +207,7 @@ void task4() //Molecular dynamics
     double a0 = 4.04;  double cell_length = 4.0*a0; double m = 26.0/9649.0;
     init_fcc(positions,4,a0);
 
-    //Randomly perturb the positions:
-    for(int i = 0; i<nAtoms;i++){
-        for(int j=0; j < 3;j++){
-            positions[i][j] += gsl_ran_flat(r, lower_bound, upper_bound);
-            velocities[i][j] = 0.0;
-        }
-    }
+    perturb(positions,velocities);
     
 
     double V                = cell_length*cell_length*cell_length;
@@ -259,7 +252,7 @@ void task4() //Molecular dynamics
         
     }
     
-    FILE *fp = fopen("task4.csv", "w");
+    FILE *fp = fopen("liquid_aluminum_simulation.csv", "w");
     fprintf(fp, "time,temperature,pressure,lattice,pos1,pos2\n");
     double avgTemp = 0.0;
     for (int i = 0; i < timeSteps; i++) {
