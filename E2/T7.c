@@ -55,8 +55,6 @@ double autocorrelation(double *data, int time_lag_ind, int max_shift_ind) {
     
     double correlation = 0.0;
     double phi = 0.0;
-
-    
     double mean = average(data,N);
 
     for(int j = 0; j<max_shift_ind;j++){
@@ -111,7 +109,7 @@ int main() {
     //compute s for different block sizes:
     int block_size; int lag;
     for(int i = 0; i< nPoints; i++){
-        block_size = i*20;
+        block_size = i*50;
         lag = i*10;
 
         correlation_lags[i] = lag;

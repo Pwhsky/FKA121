@@ -22,17 +22,17 @@ result_t MC_with_importance_sampling(int N, gsl_rng *k)
     result_t result;
     double x;
     double y;
-    double sum = 0;
-    double squareSum= 0;  
+    double mean = 0;
+    double meanOfSquares= 0;  
     for (int i = 0; i < N; i++){
         x = gsl_rng_uniform(k);
         y = (1.0/PI)*acos(1.0-2.0*x);
         
-        sum += (2.0/PI)*(y*(1-y))/(sin(PI*y));
-        squareSum += pow((2.0/PI)*(y*(1-y))/(sin(PI*y)),2);
+        mean += (2.0/PI)*(y*(1-y))/(sin(PI*y));
+        meanOfSquares += pow((2.0/PI)*(y*(1-y))/(sin(PI*y)),2);
     }  
-    double sigma = sqrt(squareSum/(double)N - pow(sum/(double)N,2))/(sqrt(N));
-    double average = sum/(double)N;
+    double sigma = sqrt(meanOfSquares/(double)N - pow(mean/(double)N,2))/(sqrt(N));
+    double average = mean/(double)N;
 
     result.integral = average; // Write the integral here
     result.error = sigma;// Write the error here
@@ -42,16 +42,16 @@ result_t MC_with_importance_sampling(int N, gsl_rng *k)
 result_t MC_without_importance_sampling(int N, gsl_rng *k)
 {
     result_t result;
-    double sum = 0;
-    double squareSum = 0;
+    double mean = 0;
+    double meanOfSquares = 0;
 
     for (int i = 0; i < N; i++){
         double x = gsl_rng_uniform(k);
-        sum += function(x);
-        squareSum += pow((function(x)),2);
+        mean += function(x);
+        meanOfSquares += pow((function(x)),2);
     }  
-    double average = sum/(double)N;
-    double sigma = sqrt(squareSum/(double)N - pow(sum/(double)N,2))/sqrt(N);
+    double average = mean/(double)N;
+    double sigma = sqrt(meanOfSquares/(double)N - pow(mean/(double)N,2))/sqrt(N);
 
     double exact   = 1.0/6.0;
     result.integral = average; // Write the integral here

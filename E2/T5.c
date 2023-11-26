@@ -75,7 +75,7 @@ int main() {
     gsl_rng_set(k, time(NULL));
 
     double* x     = (double*)malloc(sizeof(double)*3);
-    int N = 1000000;
+    int N = 10e5;
     x[0] = gsl_rng_uniform(k);
     x[1] = gsl_rng_uniform(k);
     x[2] = gsl_rng_uniform(k);
