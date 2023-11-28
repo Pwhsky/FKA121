@@ -1,1 +1,1 @@
-obj/run.o: src/run.c
+obj/run.o: src/run.c include/tools.h
