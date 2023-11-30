@@ -4,7 +4,6 @@ LOCAL=${HOME}/.local
 CFLAGS = \
 	 -pedantic \
 	 -Werror \
-	 -Wall \
 	 -g \
 	 -Iinclude \
 	 -Wl,-rpath,${LOCAL}/lib \
