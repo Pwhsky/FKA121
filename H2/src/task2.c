@@ -21,7 +21,7 @@ double get_energy(int r1, int r2,int *species, double **neighbour, double band_e
 double get_P(int *species, int N);
 double get_r(int *species, int N, double **neighbour);
 double E_initial(int species[], double **neighbour, int n, double band_energies[3]);
-
+int accepted = 0;
 
 
 int main()
@@ -66,12 +66,12 @@ int main()
     double **neighbour;
     neighbour = bcc(N-1);
 
-    const gsl_rng_type *stime;
-    gsl_rng *qtime;
+    const gsl_rng_type *q;
+    gsl_rng *k;
     gsl_rng_env_setup();
-    stime = gsl_rng_default;
-    qtime = gsl_rng_alloc(stime);
-    gsl_rng_set(qtime,time(NULL));
+    q = gsl_rng_default;
+    k = gsl_rng_alloc(q);
+    gsl_rng_set(k,time(NULL));
     int r1,r2;
     
     // Declarations for particletypes
@@ -97,8 +97,9 @@ int main()
         // Iterate the system
         for (i=0; i<nsteps+Neq; i++) {
             // Assign two particles to switch places
-            r1 = (int) gsl_rng_uniform_int(qtime, 2*n);
-            r2 = (int) gsl_rng_uniform_int(qtime, 2*n);
+           
+            r1 = (int) gsl_rng_uniform_int(k, 2*n);
+            r2 = (int) gsl_rng_uniform_int(k, 2*n);
 
 
             U0 = get_energy(r1, r2, species, neighbour, band_energies);//get_energy(neighbour, band_energies, species, n); 
@@ -107,20 +108,18 @@ int main()
 
             dE = Unew - U0;
             // Check trial configuration
-            if (dE<=0 || exp(-dE/(kb*T))>gsl_rng_uniform(qtime)) { // 
+            if (dE<=0 || exp(-dE/(kb*T))>gsl_rng_uniform(k)) { // 
                 E += dE;
-                // we are happy with the visit to swing
-                // note change 
-              }
+                accepted++;
+            }
             else {
-                /* switch back if trial rejected */
-            swing(r1,r2,species);
+                swing(r1,r2,species);
             }
             
             if(i>=Neq){       
-                P_n[i-Neq][t] = get_P(species,n);//fabs((double)2*n_As/n - 1);
+                P_n[i-Neq][t] = get_P(species,n);
                 U_n[i-Neq][t] = (double)E;
-                r_n[i-Neq][t] = (double)get_r(species, n, neighbour);//get_r(species, n, neighbour);//0.25*n_ABs/n - 1;
+                r_n[i-Neq][t] = (double)get_r(species, n, neighbour);
      
             }
         }
@@ -172,7 +171,8 @@ int main()
     free(U_n); free(U_avg);
     free(r_n);  free(r_avg);
     free(species);
-    
+
+    printf("%lf\n",accepted/(double)((nsteps+Neq)*T_len));
     return 0;
 }
 
