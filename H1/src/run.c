@@ -9,10 +9,11 @@
 #include <gsl/gsl_randist.h>
 
 // Isothermal compressability for aluminium
-double kappa_T = 0.01385*1e-4;
+double kappa_T = 1.0/760000.0;
 double kb = 8.6173e-5;
-
+double avgTemp = 0.0;
 int nAtoms = 256;
+
 double* temperature;
 double* pressure;
 double* lattice_constant;
@@ -34,7 +35,7 @@ void perturb(double** positions,double** velocities);
    
 double  kinetic= 0, squaredAverage= 0,  averageSquared= 0,alphaT = 1.0, 
 alphaP = 1.0; int timeSteps;
-
+int burnoff = 5000;
 double lower_bound = -0.065*4.03;
 double upper_bound = 0.065*4.03;
 
@@ -42,6 +43,7 @@ void lattice_parameter_simulation(); //Lattice parameter
 void energy_conservation_simulation(); //material relaxation
 void solid_aluminum_simulation(); //Pressure and temperature for solid  AND heat capacity
 void liquid_aluminum_simulation(); //Pressure and temperature for liquid AND heat capacity AND radial distribution function
+
 int
 run(
     int argc,
@@ -61,18 +63,192 @@ run(
     kinetic_energy   = (double*)malloc(sizeof(double)*timeSteps);
     potential_energy = (double*)malloc(sizeof(double)*timeSteps);
     total_energy     = (double*)malloc(sizeof(double)*timeSteps);
-    positions = create_2D_array(256,3);
+
+    positions  = create_2D_array(256,3);
     velocities = create_2D_array(256,3);
-    forces    = create_2D_array(256,3);
+    forces     = create_2D_array(256,3);
     sample_trajectory = create_2D_array(timeSteps,3);
 
     //lattice_parameter_simulation();
     //energy_conservation_simulation();
-	//solid_aluminum_simulation();
+	solid_aluminum_simulation();
     liquid_aluminum_simulation();
     
     return 0;  
 }
+
+
+void solid_aluminum_simulation() //Molecular dynamics
+{
+    double factor =3.0*nAtoms*kb/2.0;
+    double dt = 0.001; double T_eq = 773.15; double P_eq = 1.0; 
+    double tau_T = 100*dt; double tau_P = 300*dt; 
+    double a0 = 4.04; double cell_length = 4.0*a0; double m = 26.0/9649.0; 
+
+    init_fcc(positions,4,a0);
+    perturb(positions,velocities);
+
+    double V  = cell_length*cell_length*cell_length;
+
+
+    double sum = 0.0;
+    double pressureSum = 0.0;
+    avgTemp = 0.0;
+    get_forces_AL(forces,positions,cell_length,nAtoms);
+    for(int t = 0; t< timeSteps;t++){
+
+        verlet_step(positions, velocities, forces,nAtoms, dt, m, cell_length);
+        V                = cell_length*cell_length*cell_length;
+        double W         = get_virial_AL(positions, cell_length,nAtoms);
+        double temp      = get_temp(velocities,nAtoms,m);
+        double press     = get_pressure(temp,W,V,nAtoms);
+        
+        alphaT           = sqrt(get_alphaT(T_eq,temp,dt,tau_T));
+        alphaP           = cbrt(get_alphaP(P_eq,press,dt,tau_P));
+        cell_length *= alphaP;
+
+        for(int i = 0; i < nAtoms; i++){
+            for(int j = 0; j < 3; j++){
+                velocities[i][j] *= alphaT;
+                positions[i][j] *= alphaP;
+            }
+        }   
+        //Update alphas
+        lattice_constant[t] = cell_length/4.0;
+        temperature[t]      = temp;
+        pressure[t]         = press;
+        for (int i = 0; i<3;i++)
+            sample_trajectory[t][i]=positions[0][i];
+        
+      //Compute fluctuations and average pressure after equilibration:
+      if (t > burnoff){
+            double mean_kinetic = get_Ekin(velocities,nAtoms,m)/(double)nAtoms;
+            
+            for(int i = 0; i < nAtoms; i++){
+                double atom_kinetic = 0.0;
+                for(int j = 0; j < 3; j++)
+                    atom_kinetic += m*pow(velocities[i][j],2)/2.0;
+
+                double fluctuation = mean_kinetic-atom_kinetic;
+                sum += fluctuation*fluctuation/(double)nAtoms;
+            }
+            pressureSum += press;
+            avgTemp += temp;
+
+        }
+       
+    }
+
+
+    sum /= ((double)(timeSteps-burnoff));
+    double heatCapacity = factor/
+    (1- 2.0*sum/(3.0*nAtoms*kb*kb*avgTemp*avgTemp));
+
+    avgTemp /= ((double)timeSteps-burnoff);
+    pressureSum /= (double)(timeSteps-burnoff);
+    printf("Average temperature during production run = %lf \n Average pressure during production run = %lf \n",avgTemp,pressureSum);
+    printf("Heat Capacity for 773.15K = %lf \n",heatCapacity);
+
+
+
+   //writing and avg temp computation
+    FILE *fp = fopen("solid_aluminum_simulation.csv", "w");
+    fprintf(fp, "time,temperature,pressure,lattice,pos1,pos2\n");
+    
+    for (int i = 0; i < timeSteps; i++){
+        fprintf(fp, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",i*dt,temperature[i],
+        pressure[i],lattice_constant[i],sample_trajectory[i][0],
+        sample_trajectory[i][1],sample_trajectory[i][2]);
+    } 
+    fclose(fp);
+}
+void liquid_aluminum_simulation() //Molecular dynamics
+{
+    double factor =3.0*nAtoms*kb/2.0;
+    double dt = 0.001; double T_eq = 973.15; double P_eq =1.0; 
+    double tau_T = 100*dt; double tau_P = 300*dt; 
+    double a0 = 4.04;  double cell_length = 4.0*a0; double m = 26.0/9649.0;
+    init_fcc(positions,4,a0);
+
+    perturb(positions,velocities);
+    
+
+    double V                = cell_length*cell_length*cell_length;
+    double sum = 0.0;
+    double pressureSum = 0.0;
+    avgTemp = 0.0;
+    get_forces_AL(forces,positions,cell_length,nAtoms);
+    for(int t = 0; t< timeSteps;t++){
+
+        //Melting routine
+        if(t < 1000){ T_eq = 2000.0;}
+        else if (t<2000){T_eq -= 0.82685;}
+        else{ T_eq = 973.15;}
+
+        verlet_step(positions, velocities, forces,nAtoms, dt, m, cell_length);
+        V                = cell_length*cell_length*cell_length;
+        double W         = get_virial_AL(positions, cell_length,nAtoms);
+        double temp      = get_temp(velocities,nAtoms,m);
+        double press     = get_pressure(temp,W,V,nAtoms);
+   
+        alphaT           = sqrt(get_alphaT(T_eq,temp,dt,tau_T));
+        alphaP           = cbrt(get_alphaP(P_eq,press,dt,tau_P));
+        cell_length *= alphaP;
+
+        for(int i = 0; i < nAtoms; i++){
+            for(int j = 0; j < 3; j++){
+                velocities[i][j] *= alphaT;
+                positions[i][j]  *= alphaP;
+            }
+        }   
+        lattice_constant[t] = cell_length/4.0;
+        temperature[t]      = temp;
+        pressure[t]         = press;
+        for (int i = 0; i<3;i++)
+            sample_trajectory[t][i]=positions[0][i];
+        //Compute fluctuations:
+        if (t > burnoff){
+
+            double mean_kinetic = get_Ekin(velocities,nAtoms,m)/(double)nAtoms;
+            
+            for(int i = 0; i < nAtoms; i++){
+                double atom_kinetic = 0.0;
+                for(int j = 0; j < 3; j++)
+                    atom_kinetic += m*pow(velocities[i][j],2)/2.0;
+
+                double fluctuation = mean_kinetic-atom_kinetic;
+                sum += fluctuation*fluctuation/(double)nAtoms;
+            }
+            pressureSum += press;
+            avgTemp += temp;
+
+        }
+        
+    }
+    
+    FILE *fp = fopen("liquid_aluminum_simulation.csv", "w");
+    fprintf(fp, "time,temperature,pressure,lattice,pos1,pos2\n");
+    for (int i = 0; i < timeSteps; i++) {
+        fprintf(fp, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",i*dt,
+    temperature[i],pressure[i], lattice_constant[i],
+      sample_trajectory[i][0],sample_trajectory[i][1],sample_trajectory[i][2]);
+
+    }
+    fclose(fp);
+    sum /= ((double)(timeSteps-burnoff));
+    avgTemp /= ((double)timeSteps-burnoff);
+    double heatCapacity = factor/
+    (1- 2.0*sum/(3.0*nAtoms*kb*kb*avgTemp*avgTemp));
+
+
+     
+    pressureSum /= (double)(timeSteps-burnoff);
+    printf("Average temperature during production run = %lf \n Average pressure during production run = %lf \n",avgTemp,pressureSum);
+
+
+    printf("Heat Capacity for 973.15K = %lf \n",heatCapacity);
+}
+
 
 void lattice_parameter_simulation(){
 
@@ -129,148 +305,6 @@ void energy_conservation_simulation(){
     fclose(fp);
 
 }
-
-void solid_aluminum_simulation() //Molecular dynamics
-{
-    
-    double dt = 0.001; double T_eq = 773.15; double P_eq =1; 
-    double tau_T = 100*dt; double tau_P = 300*dt; 
-    double a0 = 4.04; double cell_length = 4.0*a0; double m = 26.0/9649.0; 
-
-    init_fcc(positions,4,a0);
-    perturb(positions,velocities);
-
-    double V  = cell_length*cell_length*cell_length;
-
-
-    double sum = 0.0;
-    get_forces_AL(forces,positions,cell_length,nAtoms);
-    for(int t = 0; t< timeSteps;t++){
-
-        verlet_step(positions, velocities, forces,nAtoms, dt, m, cell_length);
-        
-        double W         = get_virial_AL(positions, cell_length,nAtoms);
-        double temp      = get_temp(velocities,nAtoms,m);
-        double press     = get_pressure(temp,W,V,nAtoms);
-        V                = cell_length*cell_length*cell_length;
-        alphaT           = sqrt(get_alphaT(T_eq,temp,dt,tau_T));
-        alphaP           = cbrt(get_alphaP(P_eq,press,dt,tau_P));
-        cell_length *= alphaP;
-
-        for(int i = 0; i < nAtoms; i++){
-            for(int j = 0; j < 3; j++){
-                velocities[i][j] *= alphaT;
-                positions[i][j] *= alphaP;
-            }
-        }   
-        //Update alphas
-        lattice_constant[t] = cell_length/4.0;
-        temperature[t]      = temp;
-        pressure[t]         = press;
-        for (int i = 0; i<3;i++)
-            sample_trajectory[t][i]=positions[0][i];
-        
-      //Compute fluctuations:
-        if (t > 2000){
-            kinetic = get_Ekin(velocities,nAtoms,m)/(double)nAtoms;
-            squaredAverage = (kinetic/(double)nAtoms)*(kinetic/(double)nAtoms);
-            averageSquared = (kinetic*kinetic)/(double)nAtoms;
-            sum += averageSquared-squaredAverage;
-        }
-        sum += averageSquared-squaredAverage;
-       
-    }
-
-    //writing and avg temp computation
-    FILE *fp = fopen("solid_aluminum_simulation.csv", "w");
-    fprintf(fp, "time,temperature,pressure,lattice,pos1,pos2\n");
-    double avgTemp = 0.0;
-    for (int i = 0; i < timeSteps; i++){
-        fprintf(fp, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",i*dt,temperature[i],
-        pressure[i],lattice_constant[i],sample_trajectory[i][0],
-        sample_trajectory[i][1],sample_trajectory[i][2]);
-        avgTemp += temperature[i];
-    } 
-
-    sum /= ((double)timeSteps);
-    avgTemp /= ((double)timeSteps-2000.0);
-    double heatCapacity = (3*nAtoms*kb/2.0)/
-    (1- 2.0*sum/(3.0*nAtoms*kb*kb*avgTemp*avgTemp));
-    printf("Heat Capacity for 773.15K = %lf \n",heatCapacity);
-    fclose(fp);
-}
-void liquid_aluminum_simulation() //Molecular dynamics
-{
-
-    double dt = 0.001; double T_eq = 973.15; double P_eq =1; 
-    double tau_T = 100*dt; double tau_P = 300*dt; 
-    double a0 = 4.04;  double cell_length = 4.0*a0; double m = 26.0/9649.0;
-    init_fcc(positions,4,a0);
-
-    perturb(positions,velocities);
-    
-
-    double V                = cell_length*cell_length*cell_length;
-    double sum = 0.0;
-    get_forces_AL(forces,positions,cell_length,nAtoms);
-    for(int t = 0; t< timeSteps;t++){
-
-        //Melting routine
-        if(t < 1000){ T_eq = 2000.0;}
-        else if (t<2000){T_eq -= 0.82685;}
-        else{ T_eq = 973.15;}
-
-        verlet_step(positions, velocities, forces,nAtoms, dt, m, cell_length);
-
-        double W         = get_virial_AL(positions, cell_length,nAtoms);
-        double temp      = get_temp(velocities,nAtoms,m);
-        double press     = get_pressure(temp,W,V,nAtoms);
-        V                = cell_length*cell_length*cell_length;
-        alphaT           = sqrt(get_alphaT(T_eq,temp,dt,tau_T));
-        alphaP           = cbrt(get_alphaP(P_eq,press,dt,tau_P));
-        cell_length *= alphaP;
-
-        for(int i = 0; i < nAtoms; i++){
-            for(int j = 0; j < 3; j++){
-                velocities[i][j] *= alphaT;
-                positions[i][j]  *= alphaP;
-            }
-        }   
-        lattice_constant[t] = cell_length/4.0;
-        temperature[t]      = temp;
-        pressure[t]         = press;
-        for (int i = 0; i<3;i++)
-            sample_trajectory[t][i]=positions[0][i];
-        //Compute fluctuations:
-        if (t > 2000){
-            kinetic = get_Ekin(velocities,nAtoms,m)/(double)nAtoms;
-            squaredAverage = (kinetic/(double)nAtoms)*(kinetic/(double)nAtoms);
-            averageSquared = (kinetic*kinetic)/(double)nAtoms;
-            sum += averageSquared-squaredAverage;
-
-        }
-        
-    }
-    
-    FILE *fp = fopen("liquid_aluminum_simulation.csv", "w");
-    fprintf(fp, "time,temperature,pressure,lattice,pos1,pos2\n");
-    double avgTemp = 0.0;
-    for (int i = 0; i < timeSteps; i++) {
-        fprintf(fp, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",i*dt,
-    temperature[i],pressure[i], lattice_constant[i],
-      sample_trajectory[i][0],sample_trajectory[i][1],sample_trajectory[i][2]);
-    avgTemp += temperature[i];
-    }
-    fclose(fp);
-
-    sum /= ((double)timeSteps);
-    avgTemp /= ((double)timeSteps-2000.0);
-    double heatCapacity = (3*nAtoms*kb/2.0)/
-    (1- 2*sum/(3.0*nAtoms*kb*kb*avgTemp*avgTemp));
-    printf("Heat Capacity for 973.15K = %lf \n",heatCapacity);
-}
-
-
 void verlet_step(double** positions, double** velocities, double** forces,
                  int nAtoms, double dt,  double m, double L){
     for(int i = 0; i < nAtoms; i++){
@@ -306,7 +340,7 @@ double get_alphaP(double P_eq, double P, double dt, double tau){
     return 1 - (kappa_T*dt/(tau))*(P_eq-P); 
 }
 double get_pressure(double T, double W, double V,int nAtoms){
-    return ((256*kb*T+W*1602000.0)/V);
+    return ((nAtoms*kb*T+W*1602000)/V);
 }
 void perturb(double** positions,double**velocities){
     for(int i = 0; i<nAtoms;i++){
