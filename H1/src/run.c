@@ -41,8 +41,10 @@ double upper_bound = 0.065*4.03;
 
 void lattice_parameter_simulation(); //Lattice parameter
 void energy_conservation_simulation(); //material relaxation
-void solid_aluminum_simulation(); //Pressure and temperature for solid  AND heat capacity
-void liquid_aluminum_simulation(); //Pressure and temperature for liquid AND heat capacity AND radial distribution function
+void solid_aluminum_simulation(); //Pressure and temperature for solid
+                                  //  AND heat capacity
+void liquid_aluminum_simulation(); //Pressure and temperature for liquid 
+                                //AND heat capacity AND radial distribution function
 
 int
 run(
@@ -64,15 +66,15 @@ run(
     potential_energy = (double*)malloc(sizeof(double)*timeSteps);
     total_energy     = (double*)malloc(sizeof(double)*timeSteps);
 
-    positions  = create_2D_array(256,3);
-    velocities = create_2D_array(256,3);
-    forces     = create_2D_array(256,3);
+    positions         = create_2D_array(256,3);
+    velocities        = create_2D_array(256,3);
+    forces            = create_2D_array(256,3);
     sample_trajectory = create_2D_array(timeSteps,3);
 
     //lattice_parameter_simulation();
     //energy_conservation_simulation();
-	solid_aluminum_simulation();
-    liquid_aluminum_simulation();
+	//solid_aluminum_simulation();
+    //liquid_aluminum_simulation();
     
     return 0;  
 }
@@ -127,10 +129,10 @@ void solid_aluminum_simulation() //Molecular dynamics
             for(int i = 0; i < nAtoms; i++){
                 double atom_kinetic = 0.0;
                 for(int j = 0; j < 3; j++)
-                    atom_kinetic += m*pow(velocities[i][j],2)/2.0;
+                    atom_kinetic += m*velocities[i][j]*velocities[i][j]/2.0;
 
                 double fluctuation = mean_kinetic-atom_kinetic;
-                sum += fluctuation*fluctuation/(double)nAtoms;
+                sum += fluctuation*fluctuation;
             }
             pressureSum += press;
             avgTemp += temp;
@@ -140,13 +142,15 @@ void solid_aluminum_simulation() //Molecular dynamics
     }
 
 
-    sum /= ((double)(timeSteps-burnoff));
+    //sum /= ((double)(256.0));
     double heatCapacity = factor/
     (1- 2.0*sum/(3.0*nAtoms*kb*kb*avgTemp*avgTemp));
 
     avgTemp /= ((double)timeSteps-burnoff);
     pressureSum /= (double)(timeSteps-burnoff);
-    printf("Average temperature during production run = %lf \n Average pressure during production run = %lf \n",avgTemp,pressureSum);
+    printf("Average temperature during production run = %lf \n 
+               Average pressure during production run = %lf \n",avgTemp,pressureSum);
+
     printf("Heat Capacity for 773.15K = %lf \n",heatCapacity);
 
 
@@ -164,7 +168,6 @@ void solid_aluminum_simulation() //Molecular dynamics
 }
 void liquid_aluminum_simulation() //Molecular dynamics
 {
-    double factor =3.0*nAtoms*kb/2.0;
     double dt = 0.001; double T_eq = 973.15; double P_eq =1.0; 
     double tau_T = 100*dt; double tau_P = 300*dt; 
     double a0 = 4.04;  double cell_length = 4.0*a0; double m = 26.0/9649.0;
@@ -207,23 +210,23 @@ void liquid_aluminum_simulation() //Molecular dynamics
         for (int i = 0; i<3;i++)
             sample_trajectory[t][i]=positions[0][i];
         //Compute fluctuations:
-        if (t > burnoff){
-
-            double mean_kinetic = get_Ekin(velocities,nAtoms,m)/(double)nAtoms;
+         if (t > burnoff){
+            //double mean_kinetic = get_Ekin(velocities,nAtoms,m)/(double)nAtoms;
             
             for(int i = 0; i < nAtoms; i++){
                 double atom_kinetic = 0.0;
                 for(int j = 0; j < 3; j++)
-                    atom_kinetic += m*pow(velocities[i][j],2)/2.0;
+                    atom_kinetic += m*velocities[i][j]*velocities[i][j]/2.0;
 
-                double fluctuation = mean_kinetic-atom_kinetic;
-                sum += fluctuation*fluctuation/(double)nAtoms;
+                double fluctuation = 0.1235890-atom_kinetic;
+                sum += fluctuation*fluctuation;
             }
+     
             pressureSum += press;
             avgTemp += temp;
 
         }
-        
+       
     }
     
     FILE *fp = fopen("liquid_aluminum_simulation.csv", "w");
@@ -235,15 +238,22 @@ void liquid_aluminum_simulation() //Molecular dynamics
 
     }
     fclose(fp);
-    sum /= ((double)(timeSteps-burnoff));
+
+
+
+    sum /= (((double)timeSteps-burnoff));
     avgTemp /= ((double)timeSteps-burnoff);
-    double heatCapacity = factor/
-    (1- 2.0*sum/(3.0*nAtoms*kb*kb*avgTemp*avgTemp));
+
+    double numerator = 3.0*nAtoms*kb/2.0;
+    double denominator = 2.0/(3.0*nAtoms*kb*kb*avgTemp*avgTemp);
+
+    double heatCapacity = numerator/(1-denominator*sum);
 
 
      
     pressureSum /= (double)(timeSteps-burnoff);
-    printf("Average temperature during production run = %lf \n Average pressure during production run = %lf \n",avgTemp,pressureSum);
+    printf("Average temperature during production run = %lf \n
+               Average pressure during production run = %lf \n",avgTemp,pressureSum);
 
 
     printf("Heat Capacity for 973.15K = %lf \n",heatCapacity);
@@ -324,7 +334,7 @@ double get_Ekin(double** velocities, int nAtoms, double m){
     double energy = 0.0;
     for(int i = 0; i < nAtoms; i++)
         for(int j = 0; j < 3; j++)
-            energy += m*pow(velocities[i][j],2)/2.0;
+            energy += m*velocities[i][j]*velocities[i][j]/2.0;
     return energy;
 }
 double get_temp(double** velocities, int nAtoms, double m){

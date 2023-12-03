@@ -23,10 +23,10 @@ ax.set_ylabel('Temperature (K)',fontsize=15)
 fig.savefig('task3temperature.pdf')
 
 fig,ax = plt.subplots(figsize=(10,7))
-ax.plot(array[:,0],array[:,2])
+ax.plot(array[:,0],array[:,2]*0.1)
 
 ax.set_xlabel('Time (ps) ',fontsize=15)
-ax.set_ylabel('Pressure (Pascal)',fontsize=15)
+ax.set_ylabel('Pressure (Bar)',fontsize=15)
 fig.savefig('task3pressure.pdf')
 
 fig,ax = plt.subplots(figsize=(10,7))
