@@ -1,20 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def estimated_autocorrelation(x):
-    """
-    http://stackoverflow.com/q/14297012/190597
-    http://en.wikipedia.org/wiki/Autocorrelation#Estimation
-    """
-    n = len(x)
-    variance = x.var()
-    x = x-x.mean()
-    r = np.correlate(x, x, mode = 'full')[-n:]
-    assert np.allclose(r, np.array([(x[:n-k]*x[-(n-k):]).sum() for k in range(n)]))
-    result = r/(variance*(np.arange(n, 0, -1)))
-    return result
-
-
 
 c_avg = np.zeros(0)  # Initialize an empty array
 
@@ -37,6 +23,10 @@ Ct = np.genfromtxt('Ct.csv',delimiter=',')
 Pt = np.genfromtxt('Pt.csv',delimiter=',')
 Ut = np.genfromtxt('Ut.csv',delimiter=',')
 
+sr = np.genfromtxt('sr.csv',delimiter=',')
+sC = np.genfromtxt('sC.csv',delimiter=',')
+sP = np.genfromtxt('sP.csv',delimiter=',')
+sU = np.genfromtxt('sU.csv',delimiter=',')
 
 
 

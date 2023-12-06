@@ -35,7 +35,7 @@ void perturb(double** positions,double** velocities);
    
 double  kinetic= 0, squaredAverage= 0,  averageSquared= 0,alphaT = 1.0, 
 alphaP = 1.0; int timeSteps;
-int burnoff = 5000;
+int burnoff = 4000;
 double lower_bound = -0.065*4.03;
 double upper_bound = 0.065*4.03;
 
@@ -58,7 +58,7 @@ run(
     T = gsl_rng_default; 
     r = gsl_rng_alloc(T);
     gsl_rng_set(r, time(NULL));
-    timeSteps = 20000;
+    timeSteps = 10000;
     temperature      = (double*)malloc(sizeof(double)*timeSteps); 
     pressure         = (double*)malloc(sizeof(double)*timeSteps);
     lattice_constant = (double*)malloc(sizeof(double)*timeSteps);
@@ -74,7 +74,7 @@ run(
     //lattice_parameter_simulation();
     //energy_conservation_simulation();
 	//solid_aluminum_simulation();
-    //liquid_aluminum_simulation();
+    liquid_aluminum_simulation();
     
     return 0;  
 }
@@ -82,7 +82,7 @@ run(
 
 void solid_aluminum_simulation() //Molecular dynamics
 {
-    double factor =3.0*nAtoms*kb/2.0;
+    double factor =3.0*nAtoms*kb;
     double dt = 0.001; double T_eq = 773.15; double P_eq = 1.0; 
     double tau_T = 100*dt; double tau_P = 300*dt; 
     double a0 = 4.04; double cell_length = 4.0*a0; double m = 26.0/9649.0; 
@@ -112,7 +112,7 @@ void solid_aluminum_simulation() //Molecular dynamics
         for(int i = 0; i < nAtoms; i++){
             for(int j = 0; j < 3; j++){
                 velocities[i][j] *= alphaT;
-                positions[i][j] *= alphaP;
+                positions[i][j]  *= alphaP;
             }
         }   
         //Update alphas
@@ -146,10 +146,9 @@ void solid_aluminum_simulation() //Molecular dynamics
     double heatCapacity = factor/
     (1- 2.0*sum/(3.0*nAtoms*kb*kb*avgTemp*avgTemp));
 
-    avgTemp /= ((double)timeSteps-burnoff);
+    avgTemp /= (double)(timeSteps-burnoff);
     pressureSum /= (double)(timeSteps-burnoff);
-    printf("Average temperature during production run = %lf \n 
-               Average pressure during production run = %lf \n",avgTemp,pressureSum);
+    printf("Average temperature during production run = %lf \n Average pressure during production run = %lf \n",avgTemp,pressureSum);
 
     printf("Heat Capacity for 773.15K = %lf \n",heatCapacity);
 
@@ -209,19 +208,18 @@ void liquid_aluminum_simulation() //Molecular dynamics
         pressure[t]         = press;
         for (int i = 0; i<3;i++)
             sample_trajectory[t][i]=positions[0][i];
-        //Compute fluctuations:
-         if (t > burnoff){
-            //double mean_kinetic = get_Ekin(velocities,nAtoms,m)/(double)nAtoms;
+
+        if (t > burnoff){
+            double mean_kinetic = get_Ekin(velocities,nAtoms,m)/(double)nAtoms;
             
             for(int i = 0; i < nAtoms; i++){
                 double atom_kinetic = 0.0;
                 for(int j = 0; j < 3; j++)
                     atom_kinetic += m*velocities[i][j]*velocities[i][j]/2.0;
 
-                double fluctuation = 0.1235890-atom_kinetic;
-                sum += fluctuation*fluctuation;
+                double fluctuation = mean_kinetic-atom_kinetic;
+                sum += (fluctuation*fluctuation)/(256.0);
             }
-     
             pressureSum += press;
             avgTemp += temp;
 
@@ -241,19 +239,19 @@ void liquid_aluminum_simulation() //Molecular dynamics
 
 
 
-    sum /= (((double)timeSteps-burnoff));
-    avgTemp /= ((double)timeSteps-burnoff);
+    
+    avgTemp /= (double)(timeSteps-burnoff);
+    sum/=(double)(timeSteps-burnoff);
 
-    double numerator = 3.0*nAtoms*kb/2.0;
-    double denominator = 2.0/(3.0*nAtoms*kb*kb*avgTemp*avgTemp);
+    double factor = 3.0*nAtoms*kb;
 
-    double heatCapacity = numerator/(1-denominator*sum);
+     double heatCapacity = factor/
+    (1- 2.0*sum/(3.0*nAtoms*kb*kb*avgTemp*avgTemp));
 
 
      
     pressureSum /= (double)(timeSteps-burnoff);
-    printf("Average temperature during production run = %lf \n
-               Average pressure during production run = %lf \n",avgTemp,pressureSum);
+    printf("Average temperature during production run = %lf \n Average pressure during production run = %lf \n",avgTemp,pressureSum);
 
 
     printf("Heat Capacity for 973.15K = %lf \n",heatCapacity);

@@ -4,15 +4,15 @@
 #include <time.h>
 #include "tools.h"
 #include <math.h>
-#define N 2000
- int burnoff = 1000;
+#define N 1000
+ int burnoff = 2000;
  const double T = 300.0; 
  const double kb = 1.380649e-8; 
  const double m = 3.0134e-5;
  const double tau_high = 147.3e-3; //microseconds
  const double tau_low  = 48.5e-3; //microseconds
  const double w0 = 19.477; //rad per ms
- const double dt = 0.001;
+ 
 
 typedef struct {
     double position;
@@ -62,28 +62,41 @@ int main(){
 
     double** trajectory = create_2D_array(N,3);
 
-    double eta = 1/tau_high;
-    double init_pos = 0.0;
-    double init_vel = 0.0;
-    double a = -w0*w0*init_pos;
-    result_t step = BD3(init_pos,init_vel,dt,eta,k);
+    double etas[] = {1/tau_low,1/tau_high};
+    double dts[] = {0.001,0.005};
 
-    //brunoff 
-    for (int i = 0; i< burnoff; i++){
-        
-        step = BD3(step.position,step.velocity,dt,eta,k);
-        
+    for(int j = 0;j<2;j++){
+        double eta = etas[j];
+        for(int p = 0; p<2;p++){
+            double dt = dts[p];
+            double init_pos = 0.0;
+            double init_vel = 0.0;
+            double a = -w0*w0*init_pos;
+            result_t step = BD3(init_pos,init_vel,dt,eta,k);
+            //brunoff 
+            for (int i = 0; i< burnoff; i++){
+                step = BD3(step.position,step.velocity,dt,eta,k);
+            }
+            //production run:
+            for(int i = 0; i<N; i++){
+
+                trajectory[i][0] = step.position;
+                trajectory[i][1] = step.velocity;
+                trajectory[i][2] = i*dt;
+                step = BD3(step.position,step.velocity,dt,eta,k);
+            }   
+            char filename[40];  // Adjust the size as needed
+            sprintf(filename, "%d%d.csv", j, p);
+
+            // Write to file with the unique filename
+            write_to_file(filename, trajectory);
+        }
+
     }
+    
 
-    //production run:
-    for(int i = 0; i<N; i++){
 
-        trajectory[i][0] = step.position;
-        trajectory[i][1] = step.velocity;
-        trajectory[i][2] = i*dt;
-        step = BD3(step.position,step.velocity,dt,eta,k);
-    }
-    write_to_file("T3.csv",trajectory);
+    
 
 
     return 0;

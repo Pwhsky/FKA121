@@ -1,7 +1,4 @@
-/*
-compile as 
-clang task2.c -o run -lgsl -lgslcblas -lm
- */
+
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 #include <stdio.h>
@@ -26,9 +23,9 @@ int accepted = 0;
 
 int main()
 {
-    int nsteps = 1e3; // Number of measure steps
-    int Neq = 1e3; // Number of equlibration steps for the first temperature
-    int Neql = 4e3; // Number of equilibration steps for all other temperatures
+    int nsteps = 1e6; // Number of measure steps
+    int Neq = 1e6; // Number of equlibration steps for the first temperature
+    int Neql = 4e6; // Number of equilibration steps for all other temperatures
     int i,t,Eswitch;
     int N = 10; // Number of unit cells in one sublattice
     int n=(N)*(N)*(N); // number of atoms in sublattice
@@ -62,7 +59,7 @@ int main()
 
     // Declare energy variables
     double E=0,dE=0, U0=0,Unew=0;
-	
+	double s_avgP[T_len], s_avgU[T_len], s_avgr[T_len]; 
     double **neighbour;
     neighbour = bcc(N-1);
 
@@ -131,17 +128,18 @@ int main()
         }
 		
 		
-	/*	s_avgP[t] = autocorrelation(P_avg, T_len);
+		s_avgP[t] = autocorrelation(P_avg, T_len);
 		s_avgU[t] = autocorrelation(U_avg, T_len);
-		s_avgr[t] = autocorrelation(r_avg, T_len);*/
-		printf("Done with %d/%d\n",t,T_len);
+		s_avgr[t] = autocorrelation(r_avg, T_len);
+		printf("Progress: %d/%d\n",t,T_len);
 }
 
     double C_T[T_len-1];// = malloc((T_len-1)*sizeof (double)); // Specific heat capacity of our system of atoms (alloy)
     double s_avgC[T_len -1];
+
     for (int i = 0; i<T_len-1; i++)
         {
-        C_T[i] = (double)(U_avg[i+1]-U_avg[i])/dT; // From the definition of the derivative
+        C_T[i] = (double)(U_avg[i+1]-U_avg[i])/(dT); // From the definition of the derivative
 
         }  
 		
@@ -165,6 +163,10 @@ int main()
     write_to_file("r.csv", r_avg, T_len);
     write_to_file("C.csv", C_T, T_len-1);
 
+    write_to_file("sP.csv", s_avgP, T_len);
+    write_to_file("sU.csv", s_avgU, T_len);
+    write_to_file("sr.csv", s_avgr, T_len);   
+	write_to_file("sC.csv", s_avgC, T_len-1);
 
     free(neighbour);
     free(P_n); free(P_avg);
@@ -213,7 +215,7 @@ double autocorrelation(double *array, int nlines){
 
       double f_ik[k];
       double phi[k];
-      double guess=0.0;
+      int guess=0;
       double s = exp(-2.0);
       for (int i=0; i<k; i++){
         f_ik[i]=0;
@@ -234,12 +236,13 @@ double autocorrelation(double *array, int nlines){
         fsq += data[i]*data[i]/nlines;
          sqf += data[i]/(nlines);
       }
-     // corrfunc = fopen("phi_ny.txt", "w");
+      corrfunc = fopen("phi_ny.csv", "w");
       for (int i=0; i<k; i++){
         phi[i] = (f_ik[i] - sqf*sqf) / (fsq - sqf*sqf);
-       // fprintf(corrfunc, "%d \t %f\n", i, phi[guess]);
+        fprintf(corrfunc, "%d \t %f\n", i, phi[guess]);
+        
 
-        if(fabs(phi[(int)guess]-s) > fabs(phi[i]-s)){
+        if ( sqrt((s-phi[i])*(s-phi[i])) < sqrt((s-phi[guess])*(s-phi[guess] ))){
           guess = i;
         }
       }
