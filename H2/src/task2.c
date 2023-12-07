@@ -20,6 +20,38 @@ double get_r(int *species, int N, double **neighbour);
 double E_initial(int species[], double **neighbour, int n, double band_energies[3]);
 int accepted = 0;
 
+double block_average(double *data,
+	                 int block_size,
+	                 int data_len
+	                )
+{
+    if (block_size == 0){
+        block_size++;
+    }
+    int lenPerBlock = data_len/(block_size);
+    double F[lenPerBlock];
+    for (int i=0; i<lenPerBlock; i++)
+        F[i] = 0;
+    
+    for (int i=0; i<lenPerBlock; i++){
+        for (int k=0; k<block_size; k++){
+            F[i] += data[k+i*block_size]/((double)block_size);
+        }
+    }
+    double variance_F = 0;
+    double mean_F = 0;
+    for (int i=0; i<lenPerBlock; i++){
+        variance_F += F[i]*F[i]/((double)lenPerBlock);
+        mean_F += F[i]/((double)lenPerBlock);
+    }
+    variance_F = variance_F - mean_F*mean_F;
+    double var = variance(data,data_len);
+
+    double s = (double)block_size * variance_F / var;
+    return s;
+}
+
+
 
 int main()
 {
