@@ -7,7 +7,16 @@
 #include <time.h>
 #define kb 8.617e-5
 #define PI 3.141592653589
-
+  int blocks = 75;
+void write_blocks(char *fname,double* x, double* y ) {
+    FILE *fp = fopen(fname, "w");
+    fprintf(fp, "Block_size,estimate\n");
+    
+    for (int i = 0; i < blocks; ++i) {
+        fprintf(fp, "%f,%f\n",x[i] ,y[i] );
+    }
+    fclose(fp);
+}
 
 void write_to_file(char *filename, double *data, int len);
 double autocorrelation(double *array, int nlines);
@@ -19,6 +28,10 @@ double get_P(int *species, int N);
 double get_r(int *species, int N, double **neighbour);
 double E_initial(int species[], double **neighbour, int n, double band_energies[3]);
 int accepted = 0;
+
+double average(double *v1,unsigned int len);
+double variance(double *v1, unsigned int len);
+
 
 double block_average(double *data,
 	                 int block_size,
@@ -77,7 +90,9 @@ int main()
     double *P_avg = calloc(T_len,sizeof(double));
     double *U_avg = calloc(T_len,sizeof(double));
     double *r_avg = calloc(T_len,sizeof(double));
-	
+	    double s_avgP[T_len];
+    double s_avgU[T_len];
+    double s_avgr[T_len]; 
 	
     double **P_n = malloc((nsteps)*sizeof(double));
     double **U_n = malloc((nsteps)*sizeof(double));
@@ -91,7 +106,7 @@ int main()
 
     // Declare energy variables
     double E=0,dE=0, U0=0,Unew=0;
-	double s_avgP[T_len], s_avgU[T_len], s_avgr[T_len]; 
+
     double **neighbour;
     neighbour = bcc(N-1);
 
@@ -160,12 +175,44 @@ int main()
         }
 		
 		
-		s_avgP[t] = autocorrelation(P_avg, T_len);
-		s_avgU[t] = autocorrelation(U_avg, T_len);
-		s_avgr[t] = autocorrelation(r_avg, T_len);
+        
+       
+		s_avgP[t] = autocorrelation((P_n[t]), T_len);
+		s_avgU[t] = autocorrelation((U_n[t]), T_len);
+		s_avgr[t] = autocorrelation((r_n[t]), T_len);
+         
 		printf("Progress: %d/%d\n",t,T_len);
-}
 
+}   
+   
+
+/*
+    double* block_sizes  = (double*)malloc(sizeof(double)*blocks);
+    double means[3];
+    means[0] = average(U_avg,T_len);
+    means[1] = average(P_avg,T_len);
+    means[2] = average(r_avg,T_len);
+   //shift the mean:
+
+    for (int i = 0; i < T_len; ++i){
+        U_avg[i] -= means[0];
+        P_avg[i] -= means[1];
+        r_avg[i] -= means[2];
+    }
+
+    for(int t = 0; t<blocks;t++ ){
+        int block_size = t;
+
+        block_sizes[t] = block_size;
+        s_avgU[t] =  block_average( U_avg, block_size, T_len);
+        s_avgP[t] =  block_average( P_avg, block_size, T_len);
+        s_avgr[t] =  block_average( r_avg, block_size, T_len);
+
+    }
+    write_blocks("sU.csv",block_sizes,s_avgU);
+    write_blocks("sP.csv",block_sizes,s_avgP);
+    write_blocks("sr.csv",block_sizes,s_avgr);
+    */
     double C_T[T_len-1];// = malloc((T_len-1)*sizeof (double)); // Specific heat capacity of our system of atoms (alloy)
     double s_avgC[T_len -1];
 
@@ -175,11 +222,7 @@ int main()
 
         }  
 		
-	for(int i =0; i< T_len-1; i++)
-	{
-		s_avgC[i] = autocorrelation(C_T, T_len-1);
-		
-	}
+	
 
     FILE *file;
     file = fopen("T.csv","w");
@@ -195,10 +238,12 @@ int main()
     write_to_file("r.csv", r_avg, T_len);
     write_to_file("C.csv", C_T, T_len-1);
 
+
     write_to_file("sP.csv", s_avgP, T_len);
     write_to_file("sU.csv", s_avgU, T_len);
     write_to_file("sr.csv", s_avgr, T_len);   
-	write_to_file("sC.csv", s_avgC, T_len-1);
+	//write_to_file("sC.csv", s_avgC, T_len-1);
+    
 
     free(neighbour);
     free(P_n); free(P_avg);
@@ -406,4 +451,29 @@ double get_r(int *species, int N, double **neighbour)
     }
     sum /= N;
     return fabs(1.0 / 4.0 * (sum - 4));
+}
+
+double
+average(
+        double *v1,
+        unsigned int len
+       )
+{
+    double sum = 0.0    ;
+    for(int i = 0; i< len; i++){
+        sum += v1[i];
+    }
+    sum = sum/(double)len;
+    return sum;
+}
+double variance(double *v1, unsigned int len)
+{
+    double mean = average(v1,len);
+    double sum = 0;
+    for(int i = 0; i<len; i++){
+        sum += pow((v1[i]-mean),2);
+    }
+    
+    sum = sqrt(sum/(double)len);
+    return sum;
 }

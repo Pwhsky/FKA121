@@ -25,13 +25,13 @@ Pt = np.genfromtxt('Pt.csv',delimiter=',')
 Ut = np.genfromtxt('Ut.csv',delimiter=',')
 
 sr = np.genfromtxt('sr.csv',delimiter=',')
-sC = np.genfromtxt('sC.csv',delimiter=',')
+
 sP = np.genfromtxt('sP.csv',delimiter=',')
 sU = np.genfromtxt('sU.csv',delimiter=',')
 
-data = [sU,sC,sP,sr]
+data = [sU,sP,sr]
 error = []
-for i in range(0,4):
+for i in range(0,3):
    
     #err = abs(estimated_autocorrelation(data[i]))
     err = abs(data[i])
